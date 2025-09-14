@@ -1,9 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
@@ -12,24 +10,61 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: '#002B36',
+          borderTopWidth: 0,
+          height: 100,
+        },
+        tabBarBackground: () => (
+          <View style={StyleSheet.absoluteFill}>
+    
+            <View style={styles.divider} />
+          </View>
+        ),
+        tabBarActiveTintColor: '#FF2D55',
+        tabBarInactiveTintColor: '#FFFFFF',
+      }}
+    >
       <Tabs.Screen
-        name="index"
+        name="dash"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="stats"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Insights',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="pulse" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="visuals"
+        options={{
+          title: 'Transactions',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pie-chart-outline" size={size} color={color} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  divider: {
+  width: '90%',
+  height: 1,
+  backgroundColor: 'white',
+  alignSelf: 'center',
+  position: 'absolute',
+  top: -10,
+}
+
+});
