@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView,
   Button
@@ -6,9 +6,12 @@ import {
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '@/components/Header';
+import { useAuth } from '@/context/authcontext';
+import { supabase } from '@/database/lib/supabase';
 
 export default function MainDash() {
   const router = useRouter();
+  const { userId } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [budgetName, setBudgetName] = useState('');
   const [budgetTotal, setBudgetTotal] = useState('');
@@ -19,7 +22,15 @@ export default function MainDash() {
   const [showDateStartPicker, setShowStartDatePicker] = useState(false);
   const [endDateObj, setEndDateObj] = useState(new Date());
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-
+  const [budgets, setBudgets] = useState<any[]>([]);
+  
+  useEffect(() => {
+    if (typeof userId !== 'number' || userId <= 0) {
+      router.replace('/login');
+    }
+    console.log('MainDash mounted with userId:', userId);
+  }, [userId]);
+  
   const onChangeStartDate = (event: any, selectedStartDate?: Date) => {
     setShowStartDatePicker(false);
     if (selectedStartDate) {
@@ -35,6 +46,31 @@ export default function MainDash() {
       setEndDateObj(selectedEndDate);
     }
   };
+
+  type Budget = {
+    name: string;
+    startDate: string;
+  };
+
+  const fetchBudgets = async () => {
+    const { data, error } = await supabase
+      .from('budgetoverview')
+      .select('budgetId, name, startDate')
+      .eq('ownerId', userId);
+    
+    if (error) {
+      console.error('Error fetching budgets:', error);
+      Alert.alert('Error', 'Could not load budgets');
+    } else {
+      setBudgets(data as Budget[]);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
+      fetchBudgets();
+    }
+  }, [userId]);
 
   const handleCreateBudget = () => {
     Alert.alert('Budget Created', `Name: ${budgetName}\nTotal: ${budgetTotal}\nStart: ${startDate}\nEnd: ${endDate}`);
@@ -57,6 +93,31 @@ export default function MainDash() {
       <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
         <Text style={styles.createButtonText}>+ Create or Join new Budget</Text>
       </TouchableOpacity>
+
+      <ScrollView style={{ width: '90%', marginTop: 20 }}>
+        {budgets.map((budget, index) => (
+          <TouchableOpacity
+            key={index}
+            style={{ backgroundColor: '#004d40', padding: 15, borderRadius: 10, marginBottom: 10 }}
+            onPress={() => {
+              if (budget?.budgetId !== undefined) {
+                router.push({
+                  pathname: '/(tabs)/dash',
+                  params: { budgetId: budget.budgetId.toString() }
+                });
+              } else {
+                console.warn('budgetId is undefined:', budget);
+                Alert.alert('Error', 'This budget is missing an ID.');
+              }
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 18 }}>{budget.name}</Text>
+            <Text style={{ color: 'white' }}>
+              Start Date: {new Date(budget.startDate).toLocaleDateString()}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <Text style={styles.budgetsLabel}>Budgets</Text>
       <Button title={'Go to budgets'} onPress={() => router.push('/(tabs)/dash')}></Button>

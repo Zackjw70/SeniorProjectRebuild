@@ -1,5 +1,6 @@
 import { View, Text, Button } from 'react-native';
 import { useRouter } from 'expo-router';
+import React from 'react';
 
 export default function Landing() {
   const router = useRouter();
