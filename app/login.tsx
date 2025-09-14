@@ -11,8 +11,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/database/lib/supabase';
 import CustomHeader from '@/components/Header';
+import { useAuth } from '@/context/authcontext';
 
 export default function Login() {
+  const { setUserId } = useAuth();
   const [username, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -36,7 +38,12 @@ export default function Login() {
     if (error || !data) {
       setError('Invalid username or password');
     } else {
-      router.replace('/mainDash');
+      setUserId(data.userid)
+      console.log('Logging in with userId:', data.userid);
+
+      setTimeout(() => {
+        router.replace('/mainDash');
+      }, 0);
     }
 
     setLoading(false);
