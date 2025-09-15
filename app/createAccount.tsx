@@ -36,7 +36,7 @@ export default function CreateAccount() {
       {
         username: cleanUsername,
         password: cleanPassword,
-        email: cleanEmail,
+        email: cleanEmail.toLowerCase(),
       },
     ]);
 
