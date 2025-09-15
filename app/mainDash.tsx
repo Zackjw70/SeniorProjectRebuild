@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView,
-  Button
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '@/components/Header';
 import { useAuth } from '@/context/authcontext';
@@ -11,7 +10,8 @@ import { supabase } from '@/database/lib/supabase';
 
 export default function MainDash() {
   const router = useRouter();
-  const { userId } = useAuth();
+  const { budgetId } = useLocalSearchParams();
+  const { user } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [budgetName, setBudgetName] = useState('');
   const [budgetTotal, setBudgetTotal] = useState('');
@@ -23,14 +23,16 @@ export default function MainDash() {
   const [endDateObj, setEndDateObj] = useState(new Date());
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [budgets, setBudgets] = useState<any[]>([]);
-  
+
   useEffect(() => {
-    if (typeof userId !== 'number' || userId <= 0) {
+    if (!user?.userid) {
       router.replace('/login');
+    } else {
+      console.log('Logged in as:', user.email);
+      fetchBudgets();
     }
-    console.log('MainDash mounted with userId:', userId);
-  }, [userId]);
-  
+  }, [user]);
+
   const onChangeStartDate = (event: any, selectedStartDate?: Date) => {
     setShowStartDatePicker(false);
     if (selectedStartDate) {
@@ -47,30 +49,30 @@ export default function MainDash() {
     }
   };
 
-  type Budget = {
-    name: string;
-    startDate: string;
-  };
-
   const fetchBudgets = async () => {
+    const { data: profile } = await supabase
+      .from('usertable')
+      .select('userid')
+      .eq('email', user?.email?.trim().toLowerCase())
+      .maybeSingle();
+
+    if (!profile?.userid) {
+      console.warn('User profile not found for:', user?.email);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('budgetoverview')
       .select('budgetId, name, startDate')
-      .eq('ownerId', userId);
-    
+      .eq('ownerId', profile.userid);
+
     if (error) {
       console.error('Error fetching budgets:', error);
       Alert.alert('Error', 'Could not load budgets');
     } else {
-      setBudgets(data as Budget[]);
+      setBudgets(data || []);
     }
   };
-
-  useEffect(() => {
-    if (userId) {
-      fetchBudgets();
-    }
-  }, [userId]);
 
   const handleCreateBudget = () => {
     Alert.alert('Budget Created', `Name: ${budgetName}\nTotal: ${budgetTotal}\nStart: ${startDate}\nEnd: ${endDate}`);
@@ -82,13 +84,60 @@ export default function MainDash() {
     setModalVisible(false);
   };
 
+  const handleBudgetPress = async (budget: any) => {
+    if (!budget?.budgetId) {
+      Alert.alert('Error', 'This budget is missing an ID.');
+      return;
+    }
+
+    try {
+      const { data: profile } = await supabase
+        .from('usertable')
+        .select('userid')
+        .eq('email', user?.email?.trim().toLowerCase())
+        .maybeSingle();
+
+      if (!profile?.userid) {
+        console.warn('User profile not found for:', user?.email);
+        Alert.alert('Error', 'Your user profile is missing.');
+        return;
+      }
+
+      const { data: existingConnection } = await supabase
+        .from('userconnection')
+        .select('connectionId')
+        .eq('userId', user?.userid)
+        .eq('budgetId', budget.budgetId)
+        .maybeSingle();
+
+      if (!existingConnection) {
+        const { error: insertError } = await supabase
+          .from('userconnection')
+          .insert([{ userId: user?.userid, budgetId: budget.budgetId }]);
+
+        if (insertError) {
+          console.error('Insert failed:', insertError);
+          Alert.alert('Error', 'Could not connect user to dashboard.');
+          return;
+        }
+
+        console.log('Connection created for user:', user?.userid);
+      }
+
+      router.push({
+        pathname: '/(tabs)/dash',
+        params: { budgetId: budget.budgetId.toString() }
+      });
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      Alert.alert('Error', 'Something went wrong.');
+    }
+  };
+
   return (
     <View style={styles.container}>
-
-      <CustomHeader title="Budget Title" showBackButton={false}/>
-
+      <CustomHeader title="Budget Title" showBackButton={false} />
       <Text style={styles.dashboardText}>Dashboard</Text>
-
 
       <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
         <Text style={styles.createButtonText}>+ Create or Join new Budget</Text>
@@ -99,17 +148,7 @@ export default function MainDash() {
           <TouchableOpacity
             key={index}
             style={{ backgroundColor: '#004d40', padding: 15, borderRadius: 10, marginBottom: 10 }}
-            onPress={() => {
-              if (budget?.budgetId !== undefined) {
-                router.push({
-                  pathname: '/(tabs)/dash',
-                  params: { budgetId: budget.budgetId.toString() }
-                });
-              } else {
-                console.warn('budgetId is undefined:', budget);
-                Alert.alert('Error', 'This budget is missing an ID.');
-              }
-            }}
+            onPress={() => handleBudgetPress(budget)}
           >
             <Text style={{ color: 'white', fontSize: 18 }}>{budget.name}</Text>
             <Text style={{ color: 'white' }}>
@@ -120,7 +159,7 @@ export default function MainDash() {
       </ScrollView>
 
       <Text style={styles.budgetsLabel}>Budgets</Text>
-      <Button title={'Go to budgets'} onPress={() => router.push('/(tabs)/dash')}></Button>
+      <Button title={'Go to budgets'} onPress={() => router.push('/(tabs)/dash')} />
 
       <Modal
         animationType="slide"
@@ -208,16 +247,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#002B36',
     padding: 16,
     flexGrow: 1
-  },
-  header: {
-    padding: 10,
-    marginBottom: 15,
-    alignItems: 'center'
-  },
-  headerText: {
-    color: 'white',
-    fontSize: 18,
-    top: 15
   },
   dashboardText: {
     fontSize: 22,

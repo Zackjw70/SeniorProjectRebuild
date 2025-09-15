@@ -15,10 +15,22 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '@/components/BudgetHeader';
-import { useAuth } from '@/context/authcontext';
 import { supabase } from '@/database/lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
 import { Picker } from '@react-native-picker/picker';
+import { useBudget } from '@/context/budgetcontext';
+
+type Category = {
+  categoryId: number;
+  categoryName: string;
+};
+
+type UserAccess = {
+  userId: number;
+  usertable: {
+    username: string;
+  };
+};
 
 export const screenOptions = {
   headerShown: false,
@@ -26,6 +38,7 @@ export const screenOptions = {
 
 export default function DashScreen() {
   const [modalVisible, setModalVisible] = useState(false);
+  const [itemName, setItemName] = useState('');
   const [value, setValue] = useState('');
   const [category, setCategory] = useState('food');
   const [user, setUser] = useState('Zack');
@@ -33,47 +46,59 @@ export default function DashScreen() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const { userId } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
+
   const { budgetId: rawBudgetId } = useLocalSearchParams();
   const parsedBudgetId = parseInt(rawBudgetId as string, 10);
-  const budgetId = Number.isNaN(parsedBudgetId) ? 0 : parsedBudgetId;
+
+  const { budgetId, setBudgetId, toggleRefresh, refreshFlag } = useBudget();
+
+  useEffect(() => {
+    if (!Number.isNaN(parsedBudgetId)) {
+      setBudgetId(parsedBudgetId);
+    }
+  }, [parsedBudgetId]);
 
   const onChangeDate = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) setDate(selectedDate);
   };
 
+  const fetchItems = async () => {
+    const { data, error } = await supabase
+      .from('itemlog')
+      .select('*')
+      .eq('budgetId', budgetId)
+      .order('created_at', { ascending: false });
+
+    if (!error) setItems(data);
+  };
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('categorytable')
+      .select('categoryId, categoryName');
+
+    if (!error) setCategories(data);
+  };
+
+  const fetchUsers = async () => {
+    const { data, error } = await supabase
+      .from('userconnection')
+      .select('userId, usertable(username)')
+      .eq('budgetId', budgetId);
+
+    if (!error) setUsersWithAccess(data);
+  };
+
   useEffect(() => {
-    const fetchItems = async () => {
-      const { data, error } = await supabase
-        .from('itemlog')
-        .select('*')
-        .eq('budgetId', budgetId);
-
-      if (error) {
-        console.error('Error fetching items:', error);
-      } else {
-        setItems(data);
-      }
-    };
-
-    const fetchCategories = async () => {
-      const { data, error } = await supabase
-        .from('categorytable')
-        .select('categoryId, categoryName');
-
-      if (error) {
-        console.error('Error fetching categories:', error);
-      } else {
-        setCategories(data);
-      }
-    };
-
-    fetchCategories();
-
-    if (budgetId > 0) fetchItems();
-  }, [budgetId]);
+    if (budgetId > 0) {
+      fetchItems();
+      fetchCategories();
+      fetchUsers();
+    }
+  }, [budgetId, refreshFlag]);
 
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
@@ -89,11 +114,20 @@ export default function DashScreen() {
       return;
     }
 
+    const selectedCategory = categories.find(c => c.categoryName === category)?.categoryId;
+    const selectedUser = usersWithAccess.find(u => u.usertable?.username === user)?.userId;
+
+    if (!selectedCategory || !selectedUser) {
+      alert('Invalid category or user selection.');
+      return;
+    }
+
     const { error } = await supabase.from('itemlog').insert([
       {
+        itemName: itemName.trim() || 'Unnamed Item',
         value: parseFloat(value),
-        categoryId: category,
-        userId: user,
+        categoryId: selectedCategory,
+        userId: selectedUser,
         notes,
         created_at: date.toISOString(),
         budgetId,
@@ -105,7 +139,10 @@ export default function DashScreen() {
       alert('Failed to save expense.');
     } else {
       alert('Expense saved!');
+      toggleRefresh();
+      fetchItems();
       setModalVisible(false);
+      setItemName('');
       setValue('');
       setCategory('food');
       setUser('Zack');
@@ -140,6 +177,12 @@ export default function DashScreen() {
               <Text style={styles.modalTitle}>Add Expense</Text>
 
               <TextInput
+                placeholder="Item Name"
+                value={itemName}
+                onChangeText={setItemName}
+                style={styles.amountInput}
+              />
+              <TextInput
                 placeholder="Enter Amount"
                 value={value}
                 onChangeText={setValue}
@@ -153,10 +196,14 @@ export default function DashScreen() {
                 onValueChange={(itemValue) => setCategory(itemValue)}
                 style={styles.picker}
               >
-                <Picker.Item label="Food" value="food" />
-                <Picker.Item label="Transport" value="transport" />
-                <Picker.Item label="Entertainment" value="entertainment" />
-                <Picker.Item label="Other" value="other" />
+                <Picker.Item label="Select category..." value="" />
+                {categories.map((choice: any) => (
+                  <Picker.Item
+                    key={choice.categoryId}
+                    label={choice.categoryName}
+                    value={choice.categoryName}
+                  />
+                ))}
               </Picker>
 
               <Text style={styles.label}>Date</Text>
@@ -178,9 +225,14 @@ export default function DashScreen() {
                 onValueChange={(itemValue) => setUser(itemValue)}
                 style={styles.picker}
               >
-                <Picker.Item label="Zack" value="Zack" />
-                <Picker.Item label="Andrew" value="Andrew" />
-                <Picker.Item label="Corey" value="Corey" />
+                <Picker.Item label="Select user..." value="" />
+                {usersWithAccess.map((entry: any) => (
+                  <Picker.Item
+                    key={entry.userId}
+                    label={entry.usertable?.username || 'Unnamed'}
+                    value={entry.usertable?.username || 'Unnamed'}
+                  />
+                ))}
               </Picker>
 
               <TextInput

@@ -1,20 +1,28 @@
 import React, { createContext, useContext, useState } from 'react';
+import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { supabase } from '@/database/lib/supabase';
+
+type CustomUser = {
+  userid: number;
+  email: string;
+  username: string;
+};
 
 type AuthContextType = {
-  userId: string | null;
-  setUserId: (id: string | null) => void;
+  user: CustomUser | null;
+  setUser: (user: CustomUser | null) => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
-  userId: null,
-  setUserId: () => {},
+  user: null,
+  setUser: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<CustomUser | null>(null);
 
   return (
-    <AuthContext.Provider value={{ userId, setUserId }}>
+    <AuthContext.Provider value={{ user, setUser }}>
       {children}
     </AuthContext.Provider>
   );

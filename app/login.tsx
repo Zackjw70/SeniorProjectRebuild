@@ -14,7 +14,7 @@ import CustomHeader from '@/components/Header';
 import { useAuth } from '@/context/authcontext';
 
 export default function Login() {
-  const { setUserId } = useAuth();
+  const { setUser } = useAuth();
   const [username, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,7 +38,7 @@ export default function Login() {
     if (error || !data) {
       setError('Invalid username or password');
     } else {
-      setUserId(data.userid)
+      setUser(data)
       console.log('Logging in with userId:', data.userid);
 
       setTimeout(() => {

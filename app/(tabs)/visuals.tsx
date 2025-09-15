@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,50 +7,119 @@ import {
   TextInput,
   TouchableOpacity,
   Button,
-  Platform
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  ScrollView
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '@/components/BudgetHeader';
+import { Picker } from '@react-native-picker/picker';
+import { supabase } from '@/database/lib/supabase';
+import { useBudget } from '@/context/budgetcontext';
+
+type Category = {
+  categoryId: number;
+  categoryName: string;
+};
+
+type UserAccess = {
+  userId: number;
+  usertable: {
+    username: string;
+  };
+};
+
 export const screenOptions = {
   headerShown: false,
 };
+
 export default function TabTwoScreen() {
-const [modalVisible, setModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [itemName, setItemName] = useState('');
   const [value, setValue] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('food');
   const [user, setUser] = useState('Zack');
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
 
-  const onChangeDate = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDate(selectedDate);
+  const { budgetId, toggleRefresh, refreshFlag } = useBudget();
+
+  useEffect(() => {
+    if (budgetId > 0) {
+      fetchCategories();
+      fetchUsers();
     }
+  }, [budgetId, refreshFlag]);
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('categorytable')
+      .select('categoryId, categoryName');
+
+    if (!error) setCategories(data);
+    else console.error('Error fetching categories:', error);
   };
 
-  const saveExpense = () => {
-    if (!value) {
-      alert('Please enter an amount.');
+  const fetchUsers = async () => {
+    const { data, error } = await supabase
+      .from('userconnection')
+      .select('userId, usertable(username)')
+      .eq('budgetId', budgetId);
+
+    if (!error) setUsersWithAccess(data);
+    else console.error('Error fetching users:', error);
+  };
+
+  const onChangeDate = (_event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) setDate(selectedDate);
+  };
+
+  const saveExpense = async () => {
+    if (!value.trim() || isNaN(parseFloat(value))) {
+      alert('Please enter a valid amount.');
       return;
     }
 
-    const newExpense = {
-      value: parseFloat(value),
-      category,
-      user,
-      notes,
-      date: date.toISOString(),
-    };
+    const selectedCategory = categories.find(c => c.categoryName === category)?.categoryId;
+    const selectedUser = usersWithAccess.find(u => u.usertable?.username === user)?.userId;
 
-    console.log('Saving Expense:', newExpense);
-    setModalVisible(false);
-    setValue('');
-    setCategory('');
-    setNotes('');
-    setDate(new Date());
+    if (!selectedCategory || !selectedUser) {
+      alert('Invalid category or user selection.');
+      return;
+    }
+
+    const { error } = await supabase.from('itemlog').insert([
+      {
+        itemName: itemName.trim() || 'Unnamed Item',
+        value: parseFloat(value),
+        categoryId: selectedCategory,
+        userId: selectedUser,
+        notes,
+        created_at: date.toISOString(),
+        budgetId,
+      },
+    ]);
+
+    if (error) {
+      console.error('Error saving expense:', error);
+      alert('Failed to save expense.');
+    } else {
+      alert('Expense saved!');
+      toggleRefresh();
+      setModalVisible(false);
+      setItemName('');
+      setValue('');
+      setCategory('food');
+      setUser('Zack');
+      setNotes('');
+      setDate(new Date());
+    }
   };
 
   return (
@@ -66,36 +135,69 @@ const [modalVisible, setModalVisible] = useState(false);
         </TouchableOpacity>
 
         <Modal animationType="slide" transparent={true} visible={modalVisible}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
             <View style={styles.expenseModal}>
               <Text style={styles.modalTitle}>Add Expense</Text>
-              <Text style={styles.amountText}>${value || '0.00'}</Text>
 
-              <View style={styles.row}>
-                <Text style={styles.label}>Category</Text>
-                <TouchableOpacity onPress={() => alert('Choose category')}>
-                  <Text style={styles.valueText}>{category || 'Choose >'}</Text>
-                </TouchableOpacity>
-              </View>
+              <TextInput
+                placeholder="Item Name"
+                value={itemName}
+                onChangeText={setItemName}
+                style={styles.amountInput}
+              />
+              <TextInput
+                placeholder="Enter Amount"
+                value={value}
+                onChangeText={setValue}
+                keyboardType="numeric"
+                style={styles.amountInput}
+              />
 
-              <View style={styles.row}>
-                <Text style={styles.label}>Date</Text>
-                <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display="default"
-                    onChange={onChangeDate}
+              <Text style={styles.label}>Category</Text>
+              <Picker
+                selectedValue={category}
+                onValueChange={(itemValue) => setCategory(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select category..." value="" />
+                {categories.map((choice) => (
+                  <Picker.Item
+                    key={choice.categoryId}
+                    label={choice.categoryName}
+                    value={choice.categoryName}
                   />
-                </TouchableOpacity>
-              </View>
+                ))}
+              </Picker>
 
-              <View style={styles.row}>
-                <Text style={styles.label}>User</Text>
-                <TouchableOpacity onPress={() => alert('Choose user')}>
-                  <Text style={styles.valueText}>{user} {'>'}</Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={styles.label}>Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
+                <Text style={styles.valueText}>{date.toDateString()}</Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={onChangeDate}
+                />
+              )}
+
+              <Text style={styles.label}>User</Text>
+              <Picker
+                selectedValue={user}
+                onValueChange={(itemValue) => setUser(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select user..." value="" />
+                {usersWithAccess.map((entry) => (
+                  <Picker.Item
+                    key={entry.userId}
+                    label={entry.usertable?.username || 'Unnamed'}
+                    value={entry.usertable?.username || 'Unnamed'}
+                  />
+                ))}
+              </Picker>
 
               <TextInput
                 placeholder="Notes"
@@ -105,14 +207,6 @@ const [modalVisible, setModalVisible] = useState(false);
                 style={styles.notesInput}
               />
 
-              <TextInput
-                placeholder="Enter Amount"
-                value={value}
-                onChangeText={setValue}
-                keyboardType="numeric"
-                style={styles.hiddenInput}
-              />
-
               <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
                 <Text style={styles.buttonText}>Add Expense</Text>
               </TouchableOpacity>
@@ -120,7 +214,8 @@ const [modalVisible, setModalVisible] = useState(false);
               <Button title="Close" onPress={() => setModalVisible(false)} />
             </View>
           </View>
-        </Modal>
+        </TouchableWithoutFeedback>
+      </Modal>
       </View>
     </View>
   );
