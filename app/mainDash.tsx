@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button,
+  Keyboard
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '@/components/Header';
 import { useAuth } from '@/context/authcontext';
 import { supabase } from '@/database/lib/supabase';
+import { useBudget } from '@/context/budgetcontext';
 
 export default function MainDash() {
   const router = useRouter();
@@ -23,15 +25,62 @@ export default function MainDash() {
   const [endDateObj, setEndDateObj] = useState(new Date());
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [budgets, setBudgets] = useState<any[]>([]);
+  const [enteredCode, setEnteredCode] = useState('');
+  const [joinedBudgetId, setJoinedBudgetId] = useState<number | null>(null);
+  const { setBudgetId, setRoomcode } = useBudget();
 
   useEffect(() => {
-    if (!user?.userid) {
-      router.replace('/login');
-    } else {
+    const run = async () => {
+      if (!user?.userid) {
+        router.replace('/login');
+        return;
+      }
+
       console.log('Logged in as:', user.email);
-      fetchBudgets();
-    }
-  }, [user]);
+
+      // Fetch budgets owned by the user
+      const { data: profile } = await supabase
+        .from('usertable')
+        .select('userid')
+        .eq('email', user.email.trim().toLowerCase())
+        .maybeSingle();
+
+      if (!profile?.userid) {
+        console.warn('User profile not found for:', user.email);
+        return;
+      }
+
+      const { data: ownedBudgets, error } = await supabase
+        .from('budgetoverview')
+        .select('budgetId, name, startDate')
+        .eq('ownerId', profile.userid);
+
+      if (error) {
+        console.error('Error fetching budgets:', error);
+        Alert.alert('Error', 'Could not load budgets');
+      } else {
+        setBudgets(ownedBudgets || []);
+      }
+
+      // If joinedBudgetId is set, fetch and append it
+      if (typeof joinedBudgetId === 'number' && joinedBudgetId > 0) {
+        const { data: joinedBudget } = await supabase
+          .from('budgetoverview')
+          .select('*')
+          .eq('budgetId', joinedBudgetId)
+          .maybeSingle();
+
+        if (joinedBudget) {
+          setBudgets(prev => {
+            const exists = prev.some(b => b.budgetId === joinedBudget.budgetId);
+            return exists ? prev : [...prev, joinedBudget];
+          });
+        }
+      }
+    };
+
+    run();
+  }, [user, joinedBudgetId]);
 
   const onChangeStartDate = (event: any, selectedStartDate?: Date) => {
     setShowStartDatePicker(false);
@@ -74,14 +123,118 @@ export default function MainDash() {
     }
   };
 
-  const handleCreateBudget = () => {
-    Alert.alert('Budget Created', `Name: ${budgetName}\nTotal: ${budgetTotal}\nStart: ${startDate}\nEnd: ${endDate}`);
-    setModalVisible(false);
+  const generateRoomCode = (): string => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   };
 
-  const handleJoinBudget = () => {
-    Alert.alert('Joining Budget', `Code: ${joinCode}`);
+
+  const handleCreateBudget = async () => {
+    if (!budgetName.trim() || !budgetTotal.trim()) {
+      Alert.alert('Missing Info', 'Please enter a name and total.');
+      return;
+    }
+
+    const roomcode = generateRoomCode();
+
+    const { data: profile } = await supabase
+      .from('usertable')
+      .select('userid')
+      .eq('email', user?.email?.trim().toLowerCase())
+      .maybeSingle();
+
+    if (!profile?.userid) {
+      Alert.alert('Error', 'User profile not found.');
+      return;
+    }
+
+    const { error: insertError, data: insertedBudget } = await supabase
+      .from('budgetoverview')
+      .insert([
+        {
+          name: budgetName.trim(),
+          startDate: startDate || new Date().toISOString(),
+          endDate: endDate || null,
+          ownerId: profile.userid,
+          roomcode,
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertError || !insertedBudget?.budgetId) {
+      console.error('Insert failed:', insertError);
+      Alert.alert('Error', 'Could not create budget.');
+      return;
+    }
+
+    
+    const { error: connectionError } = await supabase
+      .from('userconnection')
+      .insert([{ userId: profile.userid, budgetId: insertedBudget.budgetId }]);
+
+    if (connectionError) {
+      console.error('Connection failed:', connectionError);
+      Alert.alert('Error', 'Could not link user to budget.');
+      return;
+    }
+
+    Alert.alert('Budget Created', `Room Code: ${roomcode}`);
+    fetchBudgets();
     setModalVisible(false);
+    setBudgetName('');
+    setBudgetTotal('');
+    setStartDate('');
+    setEndDate('');
+  };
+
+
+  const handleJoinBudget = async () => {
+    const cleanedCode = joinCode.trim().toLowerCase();
+    console.log('Joining room with code:', cleanedCode);
+
+
+    const { data: budgetMatch, error: budgetError } = await supabase
+      .from('budgetoverview')
+      .select('budgetId')
+      .eq('roomcode', cleanedCode)
+      .maybeSingle();
+
+      console.log('Supabase response:', { budgetMatch, budgetError });
+
+    if (!budgetMatch?.budgetId) {
+      Alert.alert('Invalid Room Code', 'No budget found for that code.');
+      return;
+    }
+
+    const { data: existingConnection } = await supabase
+      .from('userconnection')
+      .select('connectionId')
+      .eq('userId', user?.userid)
+      .eq('budgetId', budgetMatch.budgetId)
+      .maybeSingle();
+
+    if (!existingConnection) {
+      const { error: insertError } = await supabase
+        .from('userconnection')
+        .insert([{ userId: user?.userid, budgetId: budgetMatch.budgetId }]);
+
+      if (insertError) {
+        console.error('Connection failed:', insertError);
+        Alert.alert('Error', 'Could not link you to this budget.');
+        return;
+      }
+    }
+
+    setBudgetId(budgetMatch.budgetId);
+    setRoomcode(cleanedCode);
+    setJoinedBudgetId(budgetMatch.budgetId);
+    setJoinCode('');
+    Alert.alert('Joined Room', `Access granted to budget ${budgetMatch.budgetId}`);
   };
 
   const handleBudgetPress = async (budget: any) => {
@@ -181,6 +334,7 @@ export default function MainDash() {
                 placeholderTextColor="#999"
               />
 
+              
               <Text style={styles.label}>Total</Text>
               <TextInput
                 style={styles.input}
@@ -189,6 +343,9 @@ export default function MainDash() {
                 placeholder="$0.00"
                 placeholderTextColor="#999"
                 keyboardType="numeric"
+                blurOnSubmit={true}
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
               />
 
               <Text style={styles.label}>Start Date</Text>
