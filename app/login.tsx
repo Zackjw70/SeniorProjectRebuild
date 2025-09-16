@@ -6,9 +6,9 @@ import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/database/lib/supabase';
 import CustomHeader from '@/components/Header';
 import { useAuth } from '@/context/authcontext';
@@ -38,141 +38,116 @@ export default function Login() {
     if (error || !data) {
       setError('Invalid username or password');
     } else {
-      setUser(data)
-      console.log('Logging in with userId:', data.userid);
-
-      setTimeout(() => {
-        router.replace('/mainDash');
-      }, 0);
+      setUser(data);
+      router.replace('/mainDash');
     }
 
     setLoading(false);
   };
 
   return (
-    <View style={styles.container}>
-     <CustomHeader title="Budget Title" showBackButton={false} showSettingsButton={false}/>
+    <View style={styles.screen}>
+      <CustomHeader title="Budget Buddy" showBackButton={false} showSettingsButton={false} />
 
+      <View style={styles.container}>
+        <Text style={styles.loginHeader}>Login</Text>
 
-      <View style={styles.divider} />
+        <Text style={styles.label}>Username:</Text>
+        <TextInput
+          placeholder="Username..."
+          placeholderTextColor="#ccc"
+          value={username}
+          onChangeText={setUserName}
+          style={styles.input}
+        />
 
-      <Text style={styles.loginHeader}>Login</Text>
+        <Text style={styles.label}>Password:</Text>
+        <TextInput
+          placeholder="Password..."
+          placeholderTextColor="#ccc"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          style={styles.input}
+        />
 
-      <Text style={styles.label}>Username</Text>
-      <TextInput
-        placeholder="Username..."
-        placeholderTextColor="#ccc"
-        value={username}
-        onChangeText={setUserName}
-        style={styles.input}
-      />
+        {error && <Text style={styles.errorText}>{error}</Text>}
 
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        placeholder="Password..."
-        placeholderTextColor="#ccc"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
+        {loading ? (
+          <ActivityIndicator color="white" style={{ marginTop: 20 }} />
+        ) : (
+          <>
+            <Pressable style={styles.loginButton} onPress={handleLogin}>
+              <Text style={styles.loginButtonText}>Login</Text>
+            </Pressable>
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
-
-      {loading ? (
-        <ActivityIndicator color="white" style={{ marginTop: 20 }} />
-      ) : (
-        <>
-          <Pressable style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Login</Text>
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/createAccount')}>
-            <Text style={styles.createAccountText}>Create Account</Text>
-          </Pressable>
-        </>
-      )}
+            <Pressable onPress={() => router.push('/createAccount')}>
+              <Text style={styles.createAccountText}>Create Account</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
+const { height, width } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#002b36', // dark teal background
+  },
   container: {
     flex: 1,
-    backgroundColor: '#001F2D',
-    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerRow: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  appTitle: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  gear: {
-
-    position: 'absolute',
-    right: 20,
-  },
-  divider: {
-    position: 'absolute',
-    top: 90,
-    width: '90%',
-    height: 1,
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
   },
   loginHeader: {
-    fontSize: 28,
+    fontSize: 24,
     color: 'white',
     fontWeight: 'bold',
-    marginBottom: 20,
-    marginTop: 60,
+    marginBottom: 30,
   },
   label: {
     alignSelf: 'flex-start',
-    color: 'white',
-    fontWeight: 'bold',
+    marginLeft: 15,
+    color: '#fff',
     marginBottom: 5,
-    marginTop: 10,
+    fontSize: 14,
   },
   input: {
-    width: '100%',
-    padding: 12,
-    borderColor: '#ccc',
+    width: '90%',
     borderWidth: 1,
+    borderColor: '#888',
     borderRadius: 6,
+    padding: 10,
+    marginBottom: 15,
     color: 'white',
-    marginBottom: 10,
   },
   loginButton: {
-    backgroundColor: '#FF3D7A',
+    marginTop: 15,
+    backgroundColor: '#ff3b80', 
     paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 6,
-    marginTop: 20,
-    width: '100%',
-    alignItems: 'center',
+    paddingHorizontal: 40,
+    borderRadius: 8,
   },
   loginButtonText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   createAccountText: {
-    marginTop: 30,
-    color: '#FF3D7A',
-    textAlign: 'center',
+    marginTop: 20,
+    color: '#ff3b80',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   errorText: {
     color: 'red',
-    marginTop: 10,
+    marginBottom: 10,
+    fontSize: 14,
   },
 });

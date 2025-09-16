@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button,
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button,
   Keyboard
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,12 +7,17 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '@/components/Header';
 import { useAuth } from '@/context/authcontext';
 import { supabase } from '@/database/lib/supabase';
+
 import { useBudget } from '@/context/budgetcontext';
+
+import { Ionicons } from '@expo/vector-icons';
+
 
 export default function MainDash() {
   const router = useRouter();
   const { budgetId } = useLocalSearchParams();
   const { user } = useAuth();
+
   const [modalVisible, setModalVisible] = useState(false);
   const [budgetName, setBudgetName] = useState('');
   const [budgetTotal, setBudgetTotal] = useState('');
@@ -21,9 +25,7 @@ export default function MainDash() {
   const [endDate, setEndDate] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [date, setDate] = useState(new Date());
-  const [showDateStartPicker, setShowStartDatePicker] = useState(false);
   const [endDateObj, setEndDateObj] = useState(new Date());
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [budgets, setBudgets] = useState<any[]>([]);
   const [enteredCode, setEnteredCode] = useState('');
   const [joinedBudgetId, setJoinedBudgetId] = useState<number | null>(null);
@@ -82,8 +84,8 @@ export default function MainDash() {
     run();
   }, [user, joinedBudgetId]);
 
+
   const onChangeStartDate = (event: any, selectedStartDate?: Date) => {
-    setShowStartDatePicker(false);
     if (selectedStartDate) {
       setStartDate(selectedStartDate.toISOString().split('T')[0]);
       setDate(selectedStartDate);
@@ -91,7 +93,6 @@ export default function MainDash() {
   };
 
   const onChangeEndDate = (event: any, selectedEndDate?: Date) => {
-    setShowEndDatePicker(false);
     if (selectedEndDate) {
       setEndDate(selectedEndDate.toISOString().split('T')[0]);
       setEndDateObj(selectedEndDate);
@@ -105,10 +106,7 @@ export default function MainDash() {
       .eq('email', user?.email?.trim().toLowerCase())
       .maybeSingle();
 
-    if (!profile?.userid) {
-      console.warn('User profile not found for:', user?.email);
-      return;
-    }
+    if (!profile?.userid) return;
 
     const { data, error } = await supabase
       .from('budgetoverview')
@@ -116,7 +114,6 @@ export default function MainDash() {
       .eq('ownerId', profile.userid);
 
     if (error) {
-      console.error('Error fetching budgets:', error);
       Alert.alert('Error', 'Could not load budgets');
     } else {
       setBudgets(data || []);
@@ -243,83 +240,43 @@ export default function MainDash() {
       return;
     }
 
-    try {
-      const { data: profile } = await supabase
-        .from('usertable')
-        .select('userid')
-        .eq('email', user?.email?.trim().toLowerCase())
-        .maybeSingle();
-
-      if (!profile?.userid) {
-        console.warn('User profile not found for:', user?.email);
-        Alert.alert('Error', 'Your user profile is missing.');
-        return;
-      }
-
-      const { data: existingConnection } = await supabase
-        .from('userconnection')
-        .select('connectionId')
-        .eq('userId', user?.userid)
-        .eq('budgetId', budget.budgetId)
-        .maybeSingle();
-
-      if (!existingConnection) {
-        const { error: insertError } = await supabase
-          .from('userconnection')
-          .insert([{ userId: user?.userid, budgetId: budget.budgetId }]);
-
-        if (insertError) {
-          console.error('Insert failed:', insertError);
-          Alert.alert('Error', 'Could not connect user to dashboard.');
-          return;
-        }
-
-        console.log('Connection created for user:', user?.userid);
-      }
-
-      router.push({
-        pathname: '/(tabs)/dash',
-        params: { budgetId: budget.budgetId.toString() }
-      });
-    } catch (err) {
-      console.error('Unexpected error:', err);
-      Alert.alert('Error', 'Something went wrong.');
-    }
+    router.push({
+      pathname: '/(tabs)/dash',
+      params: { budgetId: budget.budgetId.toString() },
+    });
   };
 
   return (
     <View style={styles.container}>
-      <CustomHeader title="Budget Title" showBackButton={false} />
-      <Text style={styles.dashboardText}>Dashboard</Text>
+      <CustomHeader title="App Title" showBackButton={false} />
 
+      <Text style={styles.sectionTitle}>Dashboard</Text>
       <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
         <Text style={styles.createButtonText}>+ Create or Join new Budget</Text>
       </TouchableOpacity>
 
-      <ScrollView style={{ width: '90%', marginTop: 20 }}>
-        {budgets.map((budget, index) => (
-          <TouchableOpacity
-            key={index}
-            style={{ backgroundColor: '#004d40', padding: 15, borderRadius: 10, marginBottom: 10 }}
-            onPress={() => handleBudgetPress(budget)}
-          >
-            <Text style={{ color: 'white', fontSize: 18 }}>{budget.name}</Text>
-            <Text style={{ color: 'white' }}>
-              Start Date: {new Date(budget.startDate).toLocaleDateString()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <Text style={styles.sectionTitle}>Budgets</Text>
+      <ScrollView style={{ width: '100%' }}>
+        {budgets.length === 0 ? (
+          <Text style={{ color: 'white', textAlign: 'center', marginTop: 10 }}>
+            No budgets yet. Create one!
+          </Text>
+        ) : (
+          budgets.map((budget, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.budgetItem}
+              onPress={() => handleBudgetPress(budget)}
+            >
+              <Ionicons name="add" size={18} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.budgetItemText}>{budget.name}</Text>
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
 
-      <Text style={styles.budgetsLabel}>Budgets</Text>
-      <Button title={'Go to budgets'} onPress={() => router.push('/(tabs)/dash')} />
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal animationType="slide" transparent visible={modalVisible}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.title}>New Budget</Text>
@@ -349,12 +306,7 @@ export default function MainDash() {
               />
 
               <Text style={styles.label}>Start Date</Text>
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display="default"
-                onChange={onChangeStartDate}
-              />
+              <DateTimePicker value={date} mode="date" display="default" onChange={onChangeStartDate} />
 
               <Text style={styles.label}>End Date</Text>
               <DateTimePicker
@@ -368,7 +320,6 @@ export default function MainDash() {
                 <Text style={styles.buttonText}>Create Budget</Text>
               </TouchableOpacity>
             </View>
-
 
             <View style={styles.separatorContainer}>
               <View style={styles.separator} />
@@ -402,98 +353,101 @@ export default function MainDash() {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#002B36',
+    flex: 1,
     padding: 16,
-    flexGrow: 1
   },
-  dashboardText: {
+  sectionTitle: {
     fontSize: 22,
+    fontWeight: 'bold',
     color: 'white',
-    marginBottom: 10
+    marginTop: 10,
+    marginBottom: 10,
   },
   createButton: {
     backgroundColor: '#ff4081',
-    padding: 12,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 6,
     alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
   createButtonText: {
     color: 'white',
-    fontWeight: 'bold'
-  },
-  budgetsLabel: {
-    fontSize: 18,
-    color: 'white',
-    marginBottom: 10
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   budgetItem: {
-    backgroundColor: '#003847',
-    padding: 10,
-    marginBottom: 8,
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
     borderColor: 'white',
-    borderWidth: 1
+    borderRadius: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    backgroundColor: 'transparent',
   },
   budgetItemText: {
-    color: 'white'
+    color: 'white',
+    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   modalContent: {
     width: '90%',
     backgroundColor: '#002933',
     padding: 20,
-    borderRadius: 10
+    borderRadius: 10,
   },
   title: {
     fontSize: 22,
     color: 'white',
     textAlign: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
   formSection: {
-    marginBottom: 20
+    marginBottom: 20,
   },
   label: {
     color: 'white',
     fontSize: 16,
-    marginTop: 10
+    marginTop: 10,
   },
   input: {
     backgroundColor: 'white',
     borderRadius: 8,
     padding: 10,
-    marginTop: 5
+    marginTop: 5,
   },
   button: {
     backgroundColor: '#ff4081',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 15
+    marginTop: 15,
   },
   buttonText: {
     color: 'white',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   separatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 15
+    marginVertical: 15,
   },
   separator: {
     flex: 1,
     height: 1,
     borderStyle: 'dotted',
     borderWidth: 1,
-    borderColor: '#ccc'
+    borderColor: '#ccc',
   },
   orText: {
     marginHorizontal: 10,
-    color: 'white'
-  }
+    color: 'white',
+  },
+
 });

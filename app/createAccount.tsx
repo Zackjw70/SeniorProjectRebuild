@@ -9,7 +9,6 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../database/lib/supabase';
 import CustomHeader from '@/components/Header';
 
@@ -32,7 +31,7 @@ export default function CreateAccount() {
 
     setLoading(true);
 
-    const { data, error } = await supabase.from('usertable').insert([
+    const { error } = await supabase.from('usertable').insert([
       {
         username: cleanUsername,
         password: cleanPassword,
@@ -53,57 +52,54 @@ export default function CreateAccount() {
 
   return (
     <View style={styles.container}>
+      {/* Header */}
+      <CustomHeader title="Budget Buddy" />
 
-      <View style={styles.headerRow}>
+      {/* Form content */}
+      <View style={styles.form}>
+        <Text style={styles.headerText}>Create Account</Text>
 
-        <Pressable style={styles.backArrow} onPress={() => router.replace('/login')}>
-          <Ionicons name="arrow-back" size={24} color="white" />
+        <Text style={styles.label}>Username</Text>
+        <TextInput
+          placeholder="Username..."
+          placeholderTextColor="#ccc"
+          value={username}
+          onChangeText={setUserName}
+          style={styles.input}
+        />
+
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          placeholder="Password..."
+          placeholderTextColor="#ccc"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          style={styles.input}
+        />
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          placeholder="Email..."
+          placeholderTextColor="#ccc"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          style={styles.input}
+        />
+
+        {loading ? (
+          <ActivityIndicator color="white" style={{ marginTop: 20 }} />
+        ) : (
+          <Pressable style={styles.button} onPress={handleCreateAccount}>
+            <Text style={styles.buttonText}>Create Account</Text>
+          </Pressable>
+        )}
+
+        <Pressable onPress={() => router.push('/login')}>
+          <Text style={styles.linkText}>Back to Login</Text>
         </Pressable>
-
-        <CustomHeader title="Budget Title" />
-
       </View>
-
-      <View style={styles.divider} />
-
-      <Text style={styles.loginHeader}>Create Account</Text>
-
-      <Text style={styles.label}>Username</Text>
-      <TextInput
-        placeholder="Username..."
-        placeholderTextColor="#ccc"
-        value={username}
-        onChangeText={setUserName}
-        style={styles.input}
-      />
-
-      <Text style={styles.label}>Password</Text>
-      <TextInput
-        placeholder="Password..."
-        placeholderTextColor="#ccc"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        placeholder="Email..."
-        placeholderTextColor="#ccc"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        style={styles.input}
-      />
-
-      {loading ? (
-        <ActivityIndicator color="white" style={{ marginTop: 20 }} />
-      ) : (
-        <Pressable style={styles.loginButton} onPress={handleCreateAccount}>
-          <Text style={styles.loginButtonText}>Create Account</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -112,52 +108,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#001F2D',
+  },
+  form: {
+    flex: 1,
     padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 20,
   },
-  headerRow: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  appTitle: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  gear: {
-    position: 'absolute',
-    right: 20,
-  },
-  backArrow: {
-    position: 'absolute',
-    left: 20,
-  },
-  divider: {
-    position: 'absolute',
-    top: 90,
-    width: '90%',
-    height: 1,
-    backgroundColor: '#fff',
-  },
-  loginHeader: {
+  headerText: {
     fontSize: 28,
     color: 'white',
     fontWeight: 'bold',
     marginBottom: 20,
-    marginTop: 60,
   },
   label: {
-    alignSelf: 'flex-start',
     color: 'white',
     fontWeight: 'bold',
     marginBottom: 5,
-    marginTop: 10,
   },
   input: {
     width: '100%',
@@ -166,22 +132,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 6,
     color: 'white',
-    marginBottom: 10,
+    marginBottom: 15,
   },
-  loginButton: {
+  button: {
     backgroundColor: '#FF3D7A',
     paddingVertical: 12,
-    paddingHorizontal: 25,
     borderRadius: 6,
-    marginTop: 20,
+    marginTop: 10,
     width: '100%',
     alignItems: 'center',
   },
-  loginButtonText: {
+  buttonText: {
     color: 'white',
     fontWeight: 'bold',
   },
-  createAccountText: {
+  linkText: {
     marginTop: 30,
     color: '#FF3D7A',
     textAlign: 'center',
