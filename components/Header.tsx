@@ -1,4 +1,4 @@
-// components/CustomHeader.tsx
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useNavigation } from 'expo-router';
@@ -20,6 +20,7 @@ export default function CustomHeader({
   const navigation = useNavigation();
 
   return (
+    <View>
     <View style={styles.container}>
       {showBackButton ? (
         <TouchableOpacity style={styles.arrow} onPress={() => navigation.goBack()}>
@@ -38,6 +39,9 @@ export default function CustomHeader({
         </TouchableOpacity>
       ) : <View style={styles.placeholder} />}
     </View>
+     <View style={styles.divider} />
+     </View>
+    
   );
 }
 
@@ -49,8 +53,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomColor: '#fff',
-    borderBottomWidth: 2,
   },
   title: {
     top: 25,
@@ -68,5 +70,12 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     top: 25,
+  },
+    divider: {
+    width: '90%',
+    alignSelf: 'center', 
+    borderBottomColor: '#fff',
+    borderBottomWidth: 2,
+    marginTop: 0, 
   },
 });

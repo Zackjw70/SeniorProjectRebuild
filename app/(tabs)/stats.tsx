@@ -163,163 +163,207 @@ export default function StatsScreen() {
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      <Modal animationType="slide" transparent={true} visible={modalVisible}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.overlay}>
-            <View style={styles.expenseModal}>
-              <Text style={styles.modalTitle}>Add Expense</Text>
+     <Modal animationType="slide" transparent={true} visible={modalVisible}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.overlay}>
+              <View style={styles.expenseModal}>
+                <Text style={styles.modalTitle}>Add Expense</Text>
 
-              <TextInput
-                placeholder="Item Name"
-                value={itemName}
-                onChangeText={setItemName}
-                style={styles.amountInput}
-              />
-              <TextInput
-                placeholder="Enter Amount"
-                value={value}
-                onChangeText={setValue}
-                keyboardType="numeric"
-                style={styles.amountInput}
-              />
-
-              <Text style={styles.label}>Category</Text>
-              <Picker
-                selectedValue={category}
-                onValueChange={(itemValue) => setCategory(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select category..." value="" />
-                {categories.map((choice: any) => (
-                  <Picker.Item
-                    key={choice.categoryId}
-                    label={choice.categoryName}
-                    value={choice.categoryName}
-                  />
-                ))}
-              </Picker>
-
-              <Text style={styles.label}>Date</Text>
-              <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-                <Text style={styles.valueText}>{date.toDateString()}</Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  onChange={onChangeDate}
+                {/* Amount */}
+                <TextInput
+                  placeholder="Enter Amount"
+                  value={value}
+                  onChangeText={setValue}
+                  keyboardType="numeric"
+                  placeholderTextColor="#888"
+                  style={styles.amountInput}
                 />
-              )}
 
-              <Text style={styles.label}>User</Text>
-              <Picker
-                selectedValue={user}
-                onValueChange={(itemValue) => setUser(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select user..." value="" />
-                {usersWithAccess.map((entry: any) => (
-                  <Picker.Item
-                    key={entry.userId}
-                    label={entry.usertable?.username || 'Unnamed'}
-                    value={entry.usertable?.username || 'Unnamed'}
+                {/* Item Name */}
+                <TextInput
+                  placeholder="Item Name"
+                  value={itemName}
+                  onChangeText={setItemName}
+                  placeholderTextColor="#888"
+                  style={styles.textInput}
+                />
+
+                {/* Category Picker */}
+                <Text style={styles.label}>Category</Text>
+                <Picker
+                  selectedValue={category}
+                  onValueChange={(itemValue) => setCategory(itemValue)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select category..." value="" />
+                  {categories.map((choice) => (
+                    <Picker.Item
+                      key={choice.categoryId}
+                      label={choice.categoryName}
+                      value={choice.categoryName}
+                    />
+                  ))}
+                </Picker>
+
+                {/* Date */}
+                <Text style={styles.label}>Date</Text>
+                <TouchableOpacity
+                  style={styles.dateBox}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={styles.valueText}>{date.toDateString()}</Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={date}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    onChange={onChangeDate}
                   />
-                ))}
-              </Picker>
+                )}
 
-              <TextInput
-                placeholder="Notes"
-                placeholderTextColor="#888"
-                value={notes}
-                onChangeText={setNotes}
-                style={styles.notesInput}
-              />
+                {/* User Picker */}
+                <Text style={styles.label}>User</Text>
+                <Picker
+                  selectedValue={user}
+                  onValueChange={(itemValue) => setUser(itemValue)}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select user..." value="" />
+                  {usersWithAccess.map((entry) => (
+                    <Picker.Item
+                      key={entry.userId}
+                      label={entry.usertable?.username || 'Unnamed'}
+                      value={entry.usertable?.username || 'Unnamed'}
+                    />
+                  ))}
+                </Picker>
 
-              <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
-                <Text style={styles.buttonText}>Add Expense</Text>
-              </TouchableOpacity>
+                {/* Notes */}
+                <TextInput
+                  placeholder="Notes"
+                  placeholderTextColor="#888"
+                  value={notes}
+                  onChangeText={setNotes}
+                  style={styles.textArea}
+                  multiline
+                />
 
-              <Button title="Close" onPress={() => setModalVisible(false)} />
+                {/* Buttons */}
+                <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
+                  <Text style={styles.buttonText}>Add Expense</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+          </TouchableWithoutFeedback>
+        </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   pageContainer: {
-    padding: 16,
-  },
-  itemCard: {
-    backgroundColor: '#003847',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-  itemText: {
-    color: 'white',
-    fontSize: 16,
+    flex: 1,
+    backgroundColor: '#002B36',
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   expenseModal: {
-    width: '90%',
-    backgroundColor: '#002933',
-    borderRadius: 10,
-    padding: 20,
+    width: '85%',
+    backgroundColor: '#003847',
+    borderRadius: 18,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 8,
   },
   modalTitle: {
-    fontSize: 22,
-    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   amountInput: {
-    backgroundColor: 'white',
-    borderRadius: 8,
+    backgroundColor: '#004d5c',
+    borderRadius: 10,
     padding: 10,
-    marginBottom: 10,
-    color: 'black',
+    marginBottom: 12,
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  textInput: {
+    backgroundColor: '#004d5c',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    fontSize: 15,
+    color: '#fff',
+  },
+  textArea: {
+    backgroundColor: '#004d5c',
+    borderRadius: 10,
+    padding: 10,
+    height: 70,
+    fontSize: 15,
+    color: '#fff',
+    marginBottom: 16,
   },
   label: {
-    fontSize: 16,
-    color: 'white',
-    marginTop: 10,
+    fontSize: 13,
+    color: '#ccc',
+    marginBottom: 4,
+    marginTop: 8,
   },
   valueText: {
-    fontSize: 16,
-    color: '#ccc',
-    marginBottom: 10,
+    fontSize: 15,
+    color: '#fff',
+  },
+  dateBox: {
+    backgroundColor: '#004d5c',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
   },
   picker: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  notesInput: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 20,
-    color: 'black',
+    backgroundColor: '#004d5c',
+    borderRadius: 10,
+    color: '#fff',
+    marginBottom: 12,
   },
   addButton: {
     backgroundColor: '#ff4081',
-    padding: 12,
-    borderRadius: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   buttonText: {
     color: 'white',
     fontWeight: 'bold',
+    fontSize: 15,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  cancelText: {
+    color: '#aaa',
+    fontSize: 14,
   },
   fab: {
     position: 'absolute',
@@ -331,8 +375,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
+    elevation: 5, 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
