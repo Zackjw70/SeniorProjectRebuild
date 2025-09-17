@@ -268,7 +268,7 @@ export default function MainDash() {
 
   return (
     <View style={styles.container}>
-      <CustomHeader title="App Title" showBackButton={false} />
+      <CustomHeader title="Budget Buddy" showBackButton={false} />
 
       <Text style={styles.sectionTitle}>Dashboard</Text>
       <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
@@ -288,7 +288,6 @@ export default function MainDash() {
               style={styles.budgetItem}
               onPress={() => handleBudgetPress(budget)}
             >
-              <Ionicons name="add" size={18} color="white" style={{ marginRight: 8 }} />
               <Text style={styles.budgetItemText}>{budget.name}</Text>
             </TouchableOpacity>
           ))
