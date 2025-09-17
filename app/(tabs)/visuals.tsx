@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,29 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  ScrollView,
+  Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '@/components/BudgetHeader';
-import { Picker } from '@react-native-picker/picker';
 import { supabase } from '@/database/lib/supabase';
+import { useLocalSearchParams } from 'expo-router';
 import { useBudget } from '@/context/budgetcontext';
+import { Picker } from '@react-native-picker/picker';
+import { iconMap } from '@/src/utils/iconMap';
 
 type Category = {
   categoryId: number;
   categoryName: string;
+  iconId?: {
+    Iconurl: string;
+  };
 };
 
 type UserAccess = {
   userId: number;
-  usertable: {
+  usertable?: {
     username: string;
   };
 };
@@ -33,62 +40,126 @@ export const screenOptions = {
   headerShown: false,
 };
 
-export default function TabTwoScreen() {
+export default function DashScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [itemName, setItemName] = useState('');
   const [value, setValue] = useState('');
-  const [category, setCategory] = useState('food');
-  const [user, setUser] = useState('Zack');
+  const [category, setCategory] = useState<number | null>(null);
+  const [user, setUser] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
+  const [totalBudget, setTotalBudget] = useState<number>(0);
+  const [budgetName, setBudgetName] = useState<string>('');
 
-  const { budgetId, toggleRefresh, refreshFlag } = useBudget();
+  const { budgetId: rawBudgetId } = useLocalSearchParams();
+  const parsedBudgetId = parseInt(rawBudgetId as string, 10);
+
+  const { budgetId, setBudgetId, toggleRefresh, refreshFlag } = useBudget();
 
   useEffect(() => {
-    if (budgetId > 0) {
-      fetchCategories();
-      fetchUsers();
+    if (!Number.isNaN(parsedBudgetId)) {
+      setBudgetId(parsedBudgetId);
     }
-  }, [budgetId, refreshFlag]);
-
-  const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('categorytable')
-      .select('categoryId, categoryName');
-
-    if (!error) setCategories(data);
-    else console.error('Error fetching categories:', error);
-  };
-
-  const fetchUsers = async () => {
-    const { data, error } = await supabase
-      .from('userconnection')
-      .select('userId, usertable(username)')
-      .eq('budgetId', budgetId);
-
-    if (!error) setUsersWithAccess(data);
-    else console.error('Error fetching users:', error);
-  };
+  }, [parsedBudgetId]);
 
   const onChangeDate = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) setDate(selectedDate);
   };
 
+  // 🔹 Fetch items
+  const fetchItems = async () => {
+    const { data, error } = await supabase
+      .from('itemlog')
+      .select('*')
+      .eq('budgetId', budgetId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setItems(data);
+  };
+
+  // 🔹 Fetch categories with icons
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('categorytable')
+      .select(`
+        categoryId,
+        categoryName,
+        iconId (
+          Iconurl
+        )
+      `);
+
+    if (!error && data) {
+      setCategories(data);
+    } else {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  // 🔹 Fetch users
+  const fetchUsers = async () => {
+    const { data, error } = await supabase
+      .from('userconnection')
+      .select(`
+        userId,
+        usertable (
+          username
+        )
+      `)
+      .eq('budgetId', budgetId);
+
+    if (error) {
+      console.error('Error fetching users:', error);
+      setUsersWithAccess([]);
+      return;
+    }
+
+    setUsersWithAccess(data || []);
+  };
+
+  // 🔹 Fetch budget info
+  const fetchBudget = async () => {
+    const { data, error } = await supabase
+      .from('budgetoverview')
+      .select('totalbudget, name')
+      .eq('budgetId', budgetId)
+      .single();
+
+    if (!error && data) {
+      setTotalBudget(data.totalbudget);
+      setBudgetName(data.name || '');
+    } else {
+      console.error('Error fetching budget:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (budgetId > 0) {
+      fetchItems();
+      fetchCategories();
+      fetchUsers();
+      fetchBudget();
+    }
+  }, [budgetId, refreshFlag]);
+
+  // 🔹 Save expense
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
       alert('Please enter a valid amount.');
       return;
     }
-
-    const selectedCategory = categories.find(c => c.categoryName === category)?.categoryId;
-    const selectedUser = usersWithAccess.find(u => u.usertable?.username === user)?.userId;
-
-    if (!selectedCategory || !selectedUser) {
-      alert('Invalid category or user selection.');
+    if (!category) {
+      alert('Please select a category.');
+      return;
+    }
+    if (!user) {
+      alert('Please choose a user.');
       return;
     }
 
@@ -96,8 +167,8 @@ export default function TabTwoScreen() {
       {
         itemName: itemName.trim() || 'Unnamed Item',
         value: parseFloat(value),
-        categoryId: selectedCategory,
-        userId: selectedUser,
+        categoryId: category,
+        userId: user,
         notes,
         created_at: date.toISOString(),
         budgetId,
@@ -110,140 +181,312 @@ export default function TabTwoScreen() {
     } else {
       alert('Expense saved!');
       toggleRefresh();
+      fetchItems();
       setModalVisible(false);
+
       setItemName('');
       setValue('');
-      setCategory('food');
-      setUser('Zack');
+      setCategory(null);
+      setUser(null);
       setNotes('');
       setDate(new Date());
     }
   };
 
+  // 🔹 Aggregate spending
+  const totalSpent = useMemo(() => {
+    return items.reduce((sum, item) => sum + item.value, 0);
+  }, [items]);
+
+  const remaining = totalBudget - totalSpent;
+
+  // 🔹 Simple color palette for categories
+const categoryColorMap: { [key: number]: string } = {
+  2: '#4A90E2', // strong blue
+  3: '#50E3C2', // teal
+  4: '#F5A623', // orange
+  5: '#F8E71C', // yellow (slightly darker for contrast)
+  6: '#9013FE', // purple
+  7: '#D0021B', // red
+  8: '#7ED321', // green
+  9: '#417505', // darker green
+  10: '#B8E986', // lime
+  11: '#8B572A', // brown
+  12: '#BD10E0', // pink/purple
+  13: '#F62E76', // hot pink
+  14: '#FF6F61', // coral
+};
+
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
-      <CustomHeader title="Budget Title" />
-      <View style={styles.pageContainer}>
-        
-        {/* Floating Action Button */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="add" size={30} color="white" />
-        </TouchableOpacity>
+      <CustomHeader title={budgetName ? budgetName : `Budget #${budgetId}`} />
 
-        {/* Modal */}
-        <Modal animationType="slide" transparent={true} visible={modalVisible}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.overlay}>
-              <View style={styles.expenseModal}>
-                <Text style={styles.modalTitle}>Add Expense</Text>
+      <ScrollView contentContainerStyle={styles.pageContainer}>
+        {/* 🔹 Budget Summary */}
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total</Text>
+          <Text style={styles.summaryValue}>
+            ${totalBudget?.toFixed(2) || '0.00'}
+          </Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Spent</Text>
+          <Text style={[styles.summaryValue, { color: "#ff4d4d" }]}>${totalSpent.toFixed(2)}</Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Remaining</Text>
+          <Text
+            style={[
+              styles.summaryValue,
+              { color: remaining < 0 ? '#ff4d4d' : '#4dff88' },
+            ]}
+          >
+            ${remaining.toFixed(2)}
+          </Text>
+        </View>
 
-                {/* Amount */}
-                <TextInput
-                  placeholder="Enter Amount"
-                  value={value}
-                  onChangeText={setValue}
-                  keyboardType="numeric"
-                  placeholderTextColor="#888"
-                  style={styles.amountInput}
-                />
+        {/* 🔹 Expense Items grouped by date */}
+        <Text style={styles.sectionTitle}>Expenses</Text>
+        {Object.entries(
+          items.reduce((acc, item) => {
+            const dateKey = new Date(item.created_at).toDateString();
+            if (!acc[dateKey]) acc[dateKey] = [];
+            acc[dateKey].push(item);
+            return acc;
+          }, {} as { [key: string]: any[] })
+        ).map(([dateKey, dayItems]) => (
+          <View key={dateKey}>
+            {/* Date Header */}
+            <Text style={styles.dateHeader}>{dateKey}</Text>
 
-                {/* Item Name */}
-                <TextInput
-                  placeholder="Item Name"
-                  value={itemName}
-                  onChangeText={setItemName}
-                  placeholderTextColor="#888"
-                  style={styles.textInput}
-                />
+            {/* Items for this date */}
+            {dayItems.map((item, index) => {
+              const categoryInfo = categories.find(
+                (c) => c.categoryId === item.categoryId
+              );
 
-                {/* Category Picker */}
-                <Text style={styles.label}>Category</Text>
-                <Picker
-                  selectedValue={category}
-                  onValueChange={(itemValue) => setCategory(itemValue)}
-                  style={styles.picker}
+              const uniqueKey =
+                item.id ??
+                `${item.categoryId}-${item.itemName}-${item.created_at}-${index}`;
+
+              return (
+                <View
+                  key={uniqueKey}
+                  style={[
+                    styles.categoryRow,
+                    { backgroundColor: categoryColorMap[item.categoryId] || '#ddd' },
+                  ]}
                 >
-                  <Picker.Item label="Select category..." value="" />
-                  {categories.map((choice) => (
-                    <Picker.Item
-                      key={choice.categoryId}
-                      label={choice.categoryName}
-                      value={choice.categoryName}
-                    />
-                  ))}
-                </Picker>
+                  {/* Left side: Icon + Item name */}
+                  <View style={styles.categoryLeft}>
+                    {categoryInfo?.iconId?.Iconurl ? (
+                      <Image
+                        source={
+                          iconMap[categoryInfo.iconId.Iconurl] ||
+                          require('@/assets/icons/Question.png')
+                        }
+                        style={styles.categoryIcon}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="folder-outline"
+                        size={20}
+                        color="#fff"
+                        style={{ marginRight: 8 }}
+                      />
+                    )}
+                    <View>
+                      <Text style={styles.categoryName}>{item.itemName}</Text>
+                      <Text style={{ color: '#fff', fontSize: 13 }}>
+                        {categoryInfo?.categoryName || 'Unknown'}
+                      </Text>
+                    </View>
+                  </View>
 
-                {/* Date */}
-                <Text style={styles.label}>Date</Text>
-                <TouchableOpacity
-                  style={styles.dateBox}
-                  onPress={() => setShowDatePicker(true)}
-                >
-                  <Text style={styles.valueText}>{date.toDateString()}</Text>
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    onChange={onChangeDate}
+                  {/* Right side: Amount */}
+                  <View style={styles.categoryRight}>
+                    <Text style={styles.categoryAmount}>
+                      ${item.value.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Floating Add Button */}
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+        <Ionicons name="add" size={30} color="white" />
+      </TouchableOpacity>
+
+      {/* 🔹 Expense Modal */}
+      <Modal animationType="slide" transparent={true} visible={modalVisible}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.overlay}>
+            <View style={styles.expenseModal}>
+              <Text style={styles.modalTitle}>Add Expense</Text>
+
+              {/* Amount */}
+              <TextInput
+                placeholder="Enter Amount"
+                value={value}
+                onChangeText={setValue}
+                keyboardType="numeric"
+                placeholderTextColor="#888"
+                style={styles.amountInput}
+              />
+
+              {/* Item Name */}
+              <TextInput
+                placeholder="Item Name"
+                value={itemName}
+                onChangeText={setItemName}
+                placeholderTextColor="#888"
+                style={styles.textInput}
+              />
+
+              {/* Category Picker */}
+              <Text style={styles.label}>Category</Text>
+              <Picker
+                selectedValue={category}
+                onValueChange={(itemValue) => setCategory(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select category..." value="" />
+                {categories.map((choice) => (
+                  <Picker.Item
+                    key={choice.categoryId}
+                    label={choice.categoryName}
+                    value={choice.categoryId}
                   />
-                )}
+                ))}
+              </Picker>
 
-                {/* User Picker */}
-                <Text style={styles.label}>User</Text>
-                <Picker
-                  selectedValue={user}
-                  onValueChange={(itemValue) => setUser(itemValue)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select user..." value="" />
-                  {usersWithAccess.map((entry) => (
-                    <Picker.Item
-                      key={entry.userId}
-                      label={entry.usertable?.username || 'Unnamed'}
-                      value={entry.usertable?.username || 'Unnamed'}
-                    />
-                  ))}
-                </Picker>
-
-                {/* Notes */}
-                <TextInput
-                  placeholder="Notes"
-                  placeholderTextColor="#888"
-                  value={notes}
-                  onChangeText={setNotes}
-                  style={styles.textArea}
-                  multiline
+              {/* Date */}
+              <Text style={styles.label}>Date</Text>
+              <TouchableOpacity
+                style={styles.dateBox}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.valueText}>{date.toDateString()}</Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  onChange={onChangeDate}
                 />
+              )}
 
-                {/* Buttons */}
-                <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
-                  <Text style={styles.buttonText}>Add Expense</Text>
-                </TouchableOpacity>
+              {/* User Picker */}
+              <Text style={styles.label}>User</Text>
+              <Picker
+                selectedValue={user}
+                onValueChange={(itemValue) => setUser(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select user..." value="" />
+                {usersWithAccess.map((entry) => (
+                  <Picker.Item
+                    key={entry.userId}
+                    label={entry.usertable?.username || 'Unnamed'}
+                    value={entry.userId}
+                  />
+                ))}
+              </Picker>
 
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+              {/* Notes */}
+              <TextInput
+                placeholder="Notes"
+                placeholderTextColor="#888"
+                value={notes}
+                onChangeText={setNotes}
+                style={styles.textArea}
+                multiline
+              />
+
+              {/* Buttons */}
+              <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
+                <Text style={styles.buttonText}>Add Expense</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   pageContainer: {
-    flex: 1,
-    backgroundColor: '#002B36',
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    color: '#ff4081',
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  summaryLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  categoryRow: {
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  categoryIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 8,
+    resizeMode: 'contain',
+  },
+  categoryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    marginRight: 12,
   },
   overlay: {
     flex: 1,
@@ -347,10 +590,17 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5, 
-    shadowColor: '#000', 
+    elevation: 5,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+  },
+  dateHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginTop: 15,
+    marginBottom: 8,
   },
 });

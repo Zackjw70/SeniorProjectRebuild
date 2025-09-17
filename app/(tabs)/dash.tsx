@@ -19,6 +19,7 @@ import { supabase } from '@/database/lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
 import { useBudget } from '@/context/budgetcontext';
 import { Picker } from '@react-native-picker/picker';
+import { iconMap } from '@/src/utils/iconMap';
 
 type Category = {
   categoryId: number;
@@ -39,6 +40,59 @@ export const screenOptions = {
   headerShown: false,
 };
 
+// 🔹 Budget Bar Component
+const BudgetBar = ({
+  categoryBreakdown,
+  totalBudget,
+  totalSpent,
+  categoryColorMap,
+}: {
+  categoryBreakdown: { [key: string]: number };
+  totalBudget: number;
+  totalSpent: number;
+  categoryColorMap: { [key: number]: string };
+}) => {
+  const segments: { color: string; flex: number }[] = [];
+
+  if (totalBudget <= 0) {
+    return (
+      <View style={styles.barContainer}>
+        <View style={[styles.segment, { flex: 1, backgroundColor: '#fff' }]} />
+      </View>
+    );
+  }
+
+  let totalPercent = 0;
+  Object.entries(categoryBreakdown).forEach(([categoryId, amount]) => {
+    const percent = (amount / totalBudget) * 100;
+    if (percent > 0) {
+      segments.push({
+        color: categoryColorMap[Number(categoryId)] || '#888',
+        flex: percent,
+      });
+      totalPercent += percent;
+    }
+  });
+
+  if (totalSpent <= totalBudget) {
+    segments.push({ color: '#fff', flex: 100 - totalPercent });
+  } else {
+    const overspendRatio = 100 / totalPercent;
+    segments.forEach((s) => (s.flex = s.flex * overspendRatio));
+  }
+
+  return (
+    <View style={styles.barContainer}>
+      {segments.map((s, idx) => (
+        <View
+          key={idx}
+          style={[styles.segment, { flex: s.flex, backgroundColor: s.color }]}
+        />
+      ))}
+    </View>
+  );
+};
+
 export default function DashScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [itemName, setItemName] = useState('');
@@ -53,6 +107,7 @@ export default function DashScreen() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
   const [totalBudget, setTotalBudget] = useState<number>(0);
+  const [budgetName, setBudgetName] = useState<string>('');
 
   const { budgetId: rawBudgetId } = useLocalSearchParams();
   const parsedBudgetId = parseInt(rawBudgetId as string, 10);
@@ -70,7 +125,6 @@ export default function DashScreen() {
     if (selectedDate) setDate(selectedDate);
   };
 
-  // 🔹 Fetch items
   const fetchItems = async () => {
     const { data, error } = await supabase
       .from('itemlog')
@@ -81,7 +135,6 @@ export default function DashScreen() {
     if (!error && data) setItems(data);
   };
 
-  // 🔹 Fetch categories with icons
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categorytable')
@@ -100,7 +153,6 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Fetch users
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('userconnection')
@@ -121,21 +173,20 @@ export default function DashScreen() {
     setUsersWithAccess(data || []);
   };
 
-  // 🔹 Fetch total budget from budgetoverview
   const fetchBudget = async () => {
-  const { data, error } = await supabase
-    .from('budgetoverview')
-    .select('totalbudget')
-    .eq('budgetId', budgetId)
-    .single();
+    const { data, error } = await supabase
+      .from('budgetoverview')
+      .select('totalbudget, name')
+      .eq('budgetId', budgetId)
+      .single();
 
-  if (!error && data) {
-    setTotalBudget(data.totalbudget);
-  } else {
-    console.error('Error fetching budget:', error);
-  }
-};
-
+    if (!error && data) {
+      setTotalBudget(data.totalbudget);
+      setBudgetName(data.name || '');
+    } else {
+      console.error('Error fetching budget:', error);
+    }
+  };
 
   useEffect(() => {
     if (budgetId > 0) {
@@ -146,7 +197,6 @@ export default function DashScreen() {
     }
   }, [budgetId, refreshFlag]);
 
-  // 🔹 Save expense
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
       alert('Please enter a valid amount.');
@@ -191,7 +241,6 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Aggregate spending
   const { totalSpent, categoryBreakdown } = useMemo(() => {
     const breakdown: { [key: string]: number } = {};
     let spent = 0;
@@ -207,28 +256,36 @@ export default function DashScreen() {
 
   const remaining = totalBudget - totalSpent;
 
-  // 🔹 Simple color palette for categories
-  const categoryColors = [
-    '#ccd4ff',
-    '#c2f0e0',
-    '#ffd6cc',
-    '#fff0b3',
-    '#e0ccff',
-  ];
+const categoryColorMap: { [key: number]: string } = {
+  2: '#4A90E2', // strong blue
+  3: '#50E3C2', // teal
+  4: '#F5A623', // orange
+  5: '#F8E71C', // yellow (slightly darker for contrast)
+  6: '#9013FE', // purple
+  7: '#D0021B', // red
+  8: '#7ED321', // green
+  9: '#417505', // darker green
+  10: '#B8E986', // lime
+  11: '#8B572A', // brown
+  12: '#BD10E0', // pink/purple
+  13: '#F62E76', // hot pink
+  14: '#FF6F61', // coral
+};
 
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
-      <CustomHeader title={`Budget #${budgetId}`} />
+      <CustomHeader title={budgetName ? budgetName : `Budget #${budgetId}`} />
 
       <ScrollView contentContainerStyle={styles.pageContainer}>
-        {/* 🔹 Budget Summary */}
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total</Text>
-          <Text style={styles.summaryValue}>${totalBudget?.toFixed(2) || '0.00'}</Text>
+          <Text style={styles.summaryValue}>
+            ${totalBudget?.toFixed(2) || '0.00'}
+          </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Spent</Text>
-          <Text style={styles.summaryValue}>${totalSpent.toFixed(2)}</Text>
+          <Text style={[styles.summaryValue, { color: "#ff4d4d" }]}>${totalSpent.toFixed(2)}</Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Remaining</Text>
@@ -242,65 +299,74 @@ export default function DashScreen() {
           </Text>
         </View>
 
-        {/* 🔹 Category Breakdown */}
+        {/* 🔹 Budget Bar */}
+        <BudgetBar
+          categoryBreakdown={categoryBreakdown}
+          totalBudget={totalBudget}
+          totalSpent={totalSpent}
+          categoryColorMap={categoryColorMap}
+        />
+
         <Text style={styles.sectionTitle}>Breakdown by Category</Text>
-        {Object.entries(categoryBreakdown).map(([categoryId, amount], index) => {
-          const category = categories.find((c) => c.categoryId == categoryId);
-          const percent = totalBudget
-            ? ((amount / totalBudget) * 100).toFixed(0)
-            : '0';
+        {Object.entries(categoryBreakdown).map(([categoryId, amount]) => {
+  const category = categories.find((c) => c.categoryId == Number(categoryId));
+  const percent = totalBudget
+    ? ((amount / totalBudget) * 100).toFixed(0)
+    : '0';
+  const color = categoryColorMap[Number(categoryId)] || '#ddd';
 
-          return (
-            <View
-              key={categoryId}
-              style={[
-                styles.categoryRow,
-                { backgroundColor: categoryColors[index % categoryColors.length] },
-              ]}
-            >
-              {/* Left side: Icon + Category name */}
-              <View style={styles.categoryLeft}>
-                {category?.iconId?.Iconurl ? (
-                  <Image
-                    source={{ uri: category.iconId.Iconurl }}
-                    style={styles.categoryIcon}
-                  />
-                ) : (
-                  <Ionicons
-                    name="folder-outline"
-                    size={20}
-                    color="#2a2a7f"
-                    style={{ marginRight: 8 }}
-                  />
-                )}
-                <Text style={styles.categoryName}>
-                  {category ? category.categoryName : 'Unknown'}
-                </Text>
-              </View>
+  return (
+    <View
+      key={categoryId}
+      style={[styles.categoryRow, { backgroundColor: color }]} // 🔹 back to old style
+    >
+      <View style={styles.categoryLeft}>
+        {category?.iconId?.Iconurl ? (
+          <Image
+            source={
+              iconMap[category?.iconId?.Iconurl] ||
+              require('@/assets/icons/Question.png')
+            }
+            style={styles.categoryIcon}
+          />
+        ) : (
+          <Ionicons
+            name="folder-outline"
+            size={20}
+            color="#2a2a7f"
+            style={{ marginRight: 8 }}
+          />
+        )}
+        <Text style={styles.categoryName}>
+          {category ? category.categoryName : 'Unknown'}
+        </Text>
+      </View>
 
-              {/* Right side: Amount + Percent */}
-              <View style={styles.categoryRight}>
-                <Text style={styles.categoryAmount}>${amount.toFixed(2)}</Text>
-                <Text style={styles.categoryPercent}>{percent}%</Text>
-              </View>
-            </View>
-          );
-        })}
+      <View style={styles.categoryRight}>
+        <Text style={styles.categoryAmount}>${amount.toFixed(2)}</Text>
+        <Text style={styles.categoryPercent}>{percent}%</Text>
+      </View>
+    </View>
+  );
+})}
+
       </ScrollView>
 
       {/* Floating Add Button */}
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setModalVisible(true)}
+      >
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      {/* 🔹 Expense Modal */}
+      {/* Expense Modal */}
       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
             <View style={styles.expenseModal}>
               <Text style={styles.modalTitle}>Add Expense</Text>
 
-              {/* Amount */}
               <TextInput
                 placeholder="Enter Amount"
                 value={value}
@@ -310,7 +376,6 @@ export default function DashScreen() {
                 style={styles.amountInput}
               />
 
-              {/* Item Name */}
               <TextInput
                 placeholder="Item Name"
                 value={itemName}
@@ -319,7 +384,6 @@ export default function DashScreen() {
                 style={styles.textInput}
               />
 
-              {/* Category Picker */}
               <Text style={styles.label}>Category</Text>
               <Picker
                 selectedValue={category}
@@ -336,7 +400,6 @@ export default function DashScreen() {
                 ))}
               </Picker>
 
-              {/* Date */}
               <Text style={styles.label}>Date</Text>
               <TouchableOpacity
                 style={styles.dateBox}
@@ -353,7 +416,6 @@ export default function DashScreen() {
                 />
               )}
 
-              {/* User Picker */}
               <Text style={styles.label}>User</Text>
               <Picker
                 selectedValue={user}
@@ -370,7 +432,6 @@ export default function DashScreen() {
                 ))}
               </Picker>
 
-              {/* Notes */}
               <TextInput
                 placeholder="Notes"
                 placeholderTextColor="#888"
@@ -380,7 +441,6 @@ export default function DashScreen() {
                 multiline
               />
 
-              {/* Buttons */}
               <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
                 <Text style={styles.buttonText}>Add Expense</Text>
               </TouchableOpacity>
@@ -426,45 +486,62 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
+  // 🔹 Budget bar styles
+  barContainer: {
+    flexDirection: 'row',
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginVertical: 12,
+  },
+  segment: {
+    height: '100%',
+  },
+  colorBox: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    marginRight: 10,
+  },
   categoryRow: {
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2a2a7f',
-  },
-  categoryIcon: {
-    width: 22,
-    height: 22,
-    marginRight: 8,
-    resizeMode: 'contain',
-  },
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryAmount: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2a2a7f',
-    marginRight: 12,
-  },
-  categoryPercent: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#2a2a7f',
-  },
+  borderRadius: 10,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingVertical: 12,
+  paddingHorizontal: 16,
+  marginBottom: 10,
+},
+categoryLeft: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+categoryName: {
+  fontSize: 16,
+  fontWeight: 'bold',
+  color: '#fff',
+},
+categoryIcon: {
+  width: 22,
+  height: 22,
+  marginRight: 8,
+  resizeMode: 'contain',
+},
+categoryRight: {
+  flexDirection: 'row',
+  alignItems: 'center',
+},
+categoryAmount: {
+  fontSize: 15,
+  fontWeight: '600',
+  color: '#fff',
+  marginRight: 12,
+},
+categoryPercent: {
+  fontSize: 15,
+  fontWeight: '600',
+  color: '#fff',
+},
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -533,7 +610,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     backgroundColor: '#004d5c',
-    borderRadius: 10,
+    borderRadius:10,
     color: '#fff',
     marginBottom: 12,
   },

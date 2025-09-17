@@ -60,15 +60,6 @@ function TabLayoutContent() {
             }}
           />
           <Tabs.Screen
-            name="stats"
-            options={{
-              title: 'Insights',
-              tabBarIcon: ({ color, size }) => (
-                <MaterialCommunityIcons name="pulse" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
             name="visuals"
             options={{
               title: 'Transactions',
