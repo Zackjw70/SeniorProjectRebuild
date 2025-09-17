@@ -96,7 +96,7 @@ const { height, width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#002b36', // dark teal background
+    backgroundColor: '#002b36', 
   },
   container: {
     flex: 1,

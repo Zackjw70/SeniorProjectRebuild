@@ -9,8 +9,8 @@ export default function Settings() {
   const { signOut } = useAuth();
 
   const handleLogout = async () => {
-    await signOut();   // clears AsyncStorage + context
-    router.replace('/login'); // then send back to login
+    await signOut();  
+    router.replace('/login'); 
   };
 
   return (

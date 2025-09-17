@@ -31,7 +31,6 @@ export default function CreateAccount() {
 
     setLoading(true);
 
-    // 🔹 Check if email already exists
     const { data: existingUser, error: fetchError } = await supabase
       .from('usertable')
       .select('email')
@@ -51,13 +50,12 @@ export default function CreateAccount() {
       return;
     }
 
-    // 🔹 Insert new user directly
     const { error } = await supabase.from('usertable').insert([
       {
         username: cleanUsername,
         password: cleanPassword,
         email: cleanEmail,
-        isVerified: true, // Always true since we’re skipping verification
+        isVerified: true, 
       },
     ]);
 

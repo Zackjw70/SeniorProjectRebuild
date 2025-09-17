@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load stored session on app start
+
     const loadUser = async () => {
       const sessionString = await AsyncStorage.getItem('user');
       if (sessionString) {
@@ -41,7 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut(); // optional if you later use Supabase Auth
+    await supabase.auth.signOut(); 
     await AsyncStorage.removeItem('user');
     setUser(null);
   };

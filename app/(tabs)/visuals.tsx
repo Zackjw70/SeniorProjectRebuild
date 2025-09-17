@@ -72,7 +72,6 @@ export default function DashScreen() {
     if (selectedDate) setDate(selectedDate);
   };
 
-  // 🔹 Fetch items
   const fetchItems = async () => {
     const { data, error } = await supabase
       .from('itemlog')
@@ -83,7 +82,7 @@ export default function DashScreen() {
     if (!error && data) setItems(data);
   };
 
-  // 🔹 Fetch categories with icons
+
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categorytable')
@@ -102,7 +101,7 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Fetch users
+
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('userconnection')
@@ -123,7 +122,7 @@ export default function DashScreen() {
     setUsersWithAccess(data || []);
   };
 
-  // 🔹 Fetch budget info
+
   const fetchBudget = async () => {
     const { data, error } = await supabase
       .from('budgetoverview')
@@ -148,7 +147,7 @@ export default function DashScreen() {
     }
   }, [budgetId, refreshFlag]);
 
-  // 🔹 Save expense
+
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
       alert('Please enter a valid amount.');
@@ -193,24 +192,23 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Aggregate spending
   const totalSpent = useMemo(() => {
     return items.reduce((sum, item) => sum + item.value, 0);
   }, [items]);
 
   const remaining = totalBudget - totalSpent;
 
-  // 🔹 Simple color palette for categories
+
 const categoryColorMap: { [key: number]: string } = {
   2: '#1E88E5', // strong blue
   3: '#00ACC1', // teal
   4: '#FB8C00', // orange
-  5: '#FDD835', // golden yellow (darker, more contrast)
+  5: '#FDD835', // golden yellow 
   6: '#8E24AA', // purple
   7: '#E53935', // red
   8: '#43A047', // green
   9: '#2E7D32', // dark green
-  10: '#7CB342', // lime/olive (darker so it shows well on white)
+  10: '#7CB342', // lime
   11: '#6D4C41', // brown
   12: '#AB47BC', // magenta
   13: '#D81B60', // hot pink
@@ -222,7 +220,7 @@ const categoryColorMap: { [key: number]: string } = {
       <CustomHeader title={budgetName ? budgetName : `Budget #${budgetId}`} />
 
       <ScrollView contentContainerStyle={styles.pageContainer}>
-        {/* 🔹 Budget Summary */}
+
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total</Text>
           <Text style={styles.summaryValue}>
@@ -245,7 +243,6 @@ const categoryColorMap: { [key: number]: string } = {
           </Text>
         </View>
 
-        {/* 🔹 Expense Items grouped by date */}
         <Text style={styles.sectionTitle}>Expenses</Text>
         {Object.entries(
           items.reduce((acc, item) => {
@@ -256,10 +253,10 @@ const categoryColorMap: { [key: number]: string } = {
           }, {} as { [key: string]: any[] })
         ).map(([dateKey, dayItems]) => (
           <View key={dateKey}>
-            {/* Date Header */}
+
             <Text style={styles.dateHeader}>{dateKey}</Text>
 
-            {/* Items for this date */}
+
             {dayItems.map((item, index) => {
               const categoryInfo = categories.find(
                 (c) => c.categoryId === item.categoryId
@@ -277,7 +274,7 @@ const categoryColorMap: { [key: number]: string } = {
                     { backgroundColor: categoryColorMap[item.categoryId] || '#ddd' },
                   ]}
                 >
-                  {/* Left side: Icon + Item name */}
+
                   <View style={styles.categoryLeft}>
                     {categoryInfo?.iconId?.Iconurl ? (
                       <Image
@@ -303,7 +300,7 @@ const categoryColorMap: { [key: number]: string } = {
                     </View>
                   </View>
 
-                  {/* Right side: Amount */}
+
                   <View style={styles.categoryRight}>
                     <Text style={styles.categoryAmount}>
                       ${item.value.toFixed(2)}
@@ -316,19 +313,18 @@ const categoryColorMap: { [key: number]: string } = {
         ))}
       </ScrollView>
 
-      {/* Floating Add Button */}
       <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      {/* 🔹 Expense Modal */}
+
       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
             <View style={styles.expenseModal}>
               <Text style={styles.modalTitle}>Add Expense</Text>
 
-              {/* Amount */}
+
               <TextInput
                 placeholder="Enter Amount"
                 value={value}
@@ -338,7 +334,6 @@ const categoryColorMap: { [key: number]: string } = {
                 style={styles.amountInput}
               />
 
-              {/* Item Name */}
               <TextInput
                 placeholder="Item Name"
                 value={itemName}
@@ -347,7 +342,6 @@ const categoryColorMap: { [key: number]: string } = {
                 style={styles.textInput}
               />
 
-              {/* Category Picker */}
               <Text style={styles.label}>Category</Text>
               <Picker
                 selectedValue={category}
@@ -364,7 +358,6 @@ const categoryColorMap: { [key: number]: string } = {
                 ))}
               </Picker>
 
-              {/* Date */}
               <Text style={styles.label}>Date</Text>
               <TouchableOpacity
                 style={styles.dateBox}
@@ -381,7 +374,6 @@ const categoryColorMap: { [key: number]: string } = {
                 />
               )}
 
-              {/* User Picker */}
               <Text style={styles.label}>User</Text>
               <Picker
                 selectedValue={user}
@@ -398,7 +390,6 @@ const categoryColorMap: { [key: number]: string } = {
                 ))}
               </Picker>
 
-              {/* Notes */}
               <TextInput
                 placeholder="Notes"
                 placeholderTextColor="#888"
@@ -408,7 +399,6 @@ const categoryColorMap: { [key: number]: string } = {
                 multiline
               />
 
-              {/* Buttons */}
               <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
                 <Text style={styles.buttonText}>Add Expense</Text>
               </TouchableOpacity>

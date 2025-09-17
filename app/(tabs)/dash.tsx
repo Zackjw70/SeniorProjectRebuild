@@ -42,7 +42,6 @@ export const screenOptions = {
   headerShown: false,
 };
 
-// 🔹 Budget Bar Component
 const BudgetBar = ({
   categoryBreakdown,
   totalBudget,
@@ -131,7 +130,6 @@ export default function DashScreen() {
     if (selectedDate) setDate(selectedDate);
   };
 
-  // 🔹 Fetch items
   const fetchItems = async () => {
     const { data, error } = await supabase
       .from('itemlog')
@@ -142,7 +140,6 @@ export default function DashScreen() {
     if (!error && data) setItems(data);
   };
 
-  // 🔹 Fetch categories
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categorytable')
@@ -159,7 +156,6 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Fetch users
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('userconnection')
@@ -176,7 +172,6 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Fetch budget
   const fetchBudget = async () => {
     const { data, error } = await supabase
       .from('budgetoverview')
@@ -200,7 +195,6 @@ export default function DashScreen() {
     }
   }, [budgetId, refreshFlag]);
 
-  // 🔹 Save expense
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
       Alert.alert('Error', 'Please enter a valid amount.');
@@ -244,7 +238,6 @@ export default function DashScreen() {
     }
   };
 
-  // 🔹 Totals
   const { totalSpent, categoryBreakdown } = useMemo(() => {
     const breakdown: { [key: string]: number } = {};
     let spent = 0;
@@ -362,14 +355,12 @@ export default function DashScreen() {
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      {/* 🔹 Expense Modal */}
       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
             <View style={styles.expenseModal}>
               <Text style={styles.modalTitle}>Add Expense</Text>
 
-              {/* Amount */}
               <TextInput
                 placeholder="Enter Amount"
                 value={value}
@@ -379,7 +370,6 @@ export default function DashScreen() {
                 style={styles.amountInput}
               />
 
-              {/* Item Name */}
               <TextInput
                 placeholder="Item Name"
                 value={itemName}
@@ -388,7 +378,6 @@ export default function DashScreen() {
                 style={styles.textInput}
               />
 
-              {/* Category Picker */}
               <Text style={styles.label}>Category</Text>
               <Picker
                 selectedValue={category}
@@ -405,7 +394,6 @@ export default function DashScreen() {
                 ))}
               </Picker>
 
-              {/* Date Picker */}
               <Text style={styles.label}>Date</Text>
               <TouchableOpacity
                 style={styles.dateBox}
@@ -422,7 +410,6 @@ export default function DashScreen() {
                 />
               )}
 
-              {/* User Picker */}
               <Text style={styles.label}>User</Text>
               <Picker
                 selectedValue={selectedUserId}
@@ -439,7 +426,6 @@ export default function DashScreen() {
                 ))}
               </Picker>
 
-              {/* Notes */}
               <TextInput
                 placeholder="Notes"
                 placeholderTextColor="#888"
@@ -449,7 +435,6 @@ export default function DashScreen() {
                 multiline
               />
 
-              {/* Buttons */}
               <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
                 <Text style={styles.buttonText}>Add Expense</Text>
               </TouchableOpacity>
@@ -519,7 +504,6 @@ const styles = StyleSheet.create({
   },
   categoryPercent: { fontSize: 15, fontWeight: '600', color: '#fff' },
 
-  // 🔹 Modal styles
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

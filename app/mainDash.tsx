@@ -42,7 +42,6 @@ export default function MainDash() {
 
       console.log('Logged in as:', user.email);
 
-      // Fetch budgets owned by the user
       const { data: profile } = await supabase
         .from('usertable')
         .select('userid')
@@ -82,7 +81,6 @@ export default function MainDash() {
         .flatMap(entry => entry.budgetoverview)
         .filter((b): b is Budget => b !== null && b.budgetId !== undefined);
 
-      // If joinedBudgetId is set, fetch and append it
       if (typeof joinedBudgetId === 'number' && joinedBudgetId > 0) {
         const { data: joinedBudget } = await supabase
           .from('budgetoverview')
@@ -171,7 +169,6 @@ export default function MainDash() {
     return;
   }
 
-  // ✅ Parse budgetTotal as number before inserting
   const parsedTotal = parseFloat(budgetTotal);
   if (isNaN(parsedTotal)) {
     Alert.alert('Error', 'Total must be a valid number.');
@@ -187,7 +184,7 @@ export default function MainDash() {
         endDate: endDate || null,
         ownerId: profile.userid,
         roomcode,
-        totalbudget: parsedTotal, // ✅ NEW: push totalbudget to DB
+        totalbudget: parsedTotal, 
       },
     ])
     .select()
@@ -319,7 +316,6 @@ export default function MainDash() {
         <View style={styles.modalContent}>
           <Text style={styles.title}>New Budget</Text>
 
-          {/* --- Create Budget Form --- */}
           <View style={styles.formSection}>
             <Text style={styles.label}>Name</Text>
             <TextInput
@@ -363,14 +359,12 @@ export default function MainDash() {
             </TouchableOpacity>
           </View>
 
-          {/* --- Separator --- */}
           <View style={styles.separatorContainer}>
             <View style={styles.separator} />
             <Text style={styles.orText}>Or Join With A Code</Text>
             <View style={styles.separator} />
           </View>
 
-          {/* --- Join Budget Form --- */}
           <View style={styles.formSection}>
             <Text style={styles.label}>Join Code:</Text>
             <TextInput
