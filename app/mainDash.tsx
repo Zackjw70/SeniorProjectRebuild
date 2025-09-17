@@ -52,33 +52,52 @@ export default function MainDash() {
         return;
       }
 
-      const { data: ownedBudgets, error } = await supabase
-        .from('budgetoverview')
-        .select('budgetId, name, startDate')
-        .eq('ownerId', profile.userid);
+      const { data: connectedBudgets, error: connectionError } = await supabase
+      .from('userconnection')
+      .select('budgetoverview(budgetId, name, startDate, ownerId)')
+      .eq('userId', profile.userid);
 
-      if (error) {
-        console.error('Error fetching budgets:', error);
-        Alert.alert('Error', 'Could not load budgets');
-      } else {
-        setBudgets(ownedBudgets || []);
-      }
+    if (connectionError) {
+      console.error('Error fetching connected budgets:', connectionError);
+      Alert.alert('Error', 'Could not load connected budgets');
+      return;
+    }
+
+    type Budget = {
+      budgetId: number;
+      name: string;
+      startDate: string;
+      ownerId: number;
+    };
+
+    type ConnectionRow = {
+      budgetoverview: Budget[];
+    };
+
+    const connectedBudgetsTyped = connectedBudgets as ConnectionRow[];
+
+      const availableBudgets = connectedBudgetsTyped
+        .flatMap(entry => entry.budgetoverview)
+        .filter((b): b is Budget => b !== null && b.budgetId !== undefined);
 
       // If joinedBudgetId is set, fetch and append it
       if (typeof joinedBudgetId === 'number' && joinedBudgetId > 0) {
         const { data: joinedBudget } = await supabase
           .from('budgetoverview')
-          .select('*')
+          .select('budgetId, name, startDate, ownerId')
           .eq('budgetId', joinedBudgetId)
           .maybeSingle();
 
         if (joinedBudget) {
-          setBudgets(prev => {
-            const exists = prev.some(b => b.budgetId === joinedBudget.budgetId);
-            return exists ? prev : [...prev, joinedBudget];
-          });
+        const exists = availableBudgets.some(b => b.budgetId === joinedBudget.budgetId);
+          if (!exists) availableBudgets.push(joinedBudget);
         }
+
       }
+      const uniqueBudgets = availableBudgets.filter(
+        (b, i, arr) => arr.findIndex(x => x.budgetId === b.budgetId) === i
+      );
+      setBudgets(uniqueBudgets);
     };
 
     run();
@@ -109,14 +128,15 @@ export default function MainDash() {
     if (!profile?.userid) return;
 
     const { data, error } = await supabase
-      .from('budgetoverview')
-      .select('budgetId, name, startDate')
-      .eq('ownerId', profile.userid);
+      .from('userconnection')
+      .select('budgetoverview(budgetId, name, startDate, ownerId)')
+      .eq('userId', profile.userid);
 
     if (error) {
       Alert.alert('Error', 'Could not load budgets');
     } else {
-      setBudgets(data || []);
+      const newData = data.map(entry => entry.budgetoverview).filter(Boolean);
+      setBudgets(newData || []);
     }
   };
 

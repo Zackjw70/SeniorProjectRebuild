@@ -66,7 +66,7 @@ export default function StatsScreen() {
   const fetchItems = async () => {
     const { data, error } = await supabase
       .from('itemlog')
-      .select('*')
+      .select('itemId, itemName, value, notes, created_at, categoryId, usertable(username), categorytable(categoryName)')
       .eq('budgetId', budgetId)
       .order('created_at', { ascending: false });
 
@@ -152,8 +152,8 @@ export default function StatsScreen() {
           <View key={item.itemId} style={styles.itemCard}>
             <Text style={styles.itemText}>{item.itemName || 'Unnamed Item'}</Text>
             <Text style={styles.itemText}>Amount: ${item.value}</Text>
-            <Text style={styles.itemText}>Category ID: {item.categoryId}</Text>
-            <Text style={styles.itemText}>User ID: {item.userId}</Text>
+            <Text style={styles.itemText}>Category: {item.categorytable?.categoryName || 'Unknown'}</Text>
+            <Text style={styles.itemText}>User: {item.usertable?.username || 'Unknown'}</Text>
             <Text style={styles.itemText}>Date: {new Date(item.created_at).toLocaleDateString()}</Text>
           </View>
         ))}
@@ -164,6 +164,11 @@ export default function StatsScreen() {
       </TouchableOpacity>
 
      <Modal animationType="slide" transparent={true} visible={modalVisible}>
+      <ScrollView
+        contentContainerStyle={styles.expenseModal}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.overlay}>
               <View style={styles.expenseModal}>
@@ -263,15 +268,17 @@ export default function StatsScreen() {
               </View>
             </View>
           </TouchableWithoutFeedback>
-        </Modal>
+        </ScrollView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   pageContainer: {
-    flex: 1,
     backgroundColor: '#002B36',
+    paddingBottom: 40,
+    minHeight: '100%'
   },
   overlay: {
     flex: 1,

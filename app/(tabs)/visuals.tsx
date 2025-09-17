@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   Keyboard,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,6 +45,8 @@ export default function TabTwoScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [totalBudget, setTotalBudget] = useState<number | null>(null);
 
   const { budgetId, toggleRefresh, refreshFlag } = useBudget();
 
@@ -51,6 +54,9 @@ export default function TabTwoScreen() {
     if (budgetId > 0) {
       fetchCategories();
       fetchUsers();
+      fetchItems();
+      fetchBudgetTotal();
+      
     }
   }, [budgetId, refreshFlag]);
 
@@ -71,6 +77,31 @@ export default function TabTwoScreen() {
 
     if (!error) setUsersWithAccess(data);
     else console.error('Error fetching users:', error);
+  };
+  const fetchBudgetTotal = async () => {
+    const { data, error } = await supabase
+      .from('budgetoverview')
+      .select('totalbudget')
+      .eq('budgetId', budgetId)
+      .maybeSingle();
+
+      console.log("budget total:", data?.totalbudget);
+
+    if (!error && data?.totalbudget !== undefined) {
+      setTotalBudget(data.totalbudget);
+    } else {
+      console.error('Error fetching total budget:', error);
+    }
+  };
+
+  const fetchItems = async () => {
+    const { data, error } = await supabase
+      .from('itemlog')
+      .select('value, categoryId, usertable(username)')
+      .eq('budgetId', budgetId);
+
+    if (!error) setItems(data || []);
+    else console.error('Error fetching items:', error);
   };
 
   const onChangeDate = (_event: any, selectedDate?: Date) => {
@@ -120,11 +151,104 @@ export default function TabTwoScreen() {
     }
   };
 
+  const categoryNameMap = useMemo(() =>{
+    return Object.fromEntries(
+      categories.map(c => [c.categoryId, c.categoryName])
+    )
+  }, [categories])
+
+  
+  const { totalSpent, categoryBreakdown, userBreakdown, budgetUsagePercent } = useMemo(() => {
+  const categoryTotals: { [key: string]: number } = {};
+  const userTotals: { [key: string]: number } = {};
+  let spent = 0;
+
+  items.forEach((item) => {
+    const amount = item.value || 0;
+    spent += amount;
+
+    categoryTotals[item.categoryId] =
+      (categoryTotals[item.categoryId] || 0) + amount;
+
+    const username = item.usertable?.username || 'Unknown';
+    userTotals[username] = (userTotals[username] || 0) + amount;
+  });
+
+  console.log('Total spent:', spent);
+  console.log('Total budget:', totalBudget);
+
+  const budgetUsagePercent = totalBudget !== null && totalBudget > 0
+    ? ((spent / totalBudget) * 100).toFixed(1)
+    : null;
+
+  const categoryBreakdown = Object.entries(categoryTotals).map(
+    ([categoryId, amount]) => ({
+      categoryId,
+      amount,
+      percentOfBudget:
+        totalBudget && totalBudget > 0
+          ? ((amount / totalBudget) * 100).toFixed(1)
+          : '0.0',
+    })
+  );
+
+  const userBreakdown = Object.entries(userTotals).map(
+    ([username, amount]) => ({
+      username,
+      amount,
+      percentOfBudget:
+        totalBudget && totalBudget > 0
+          ? ((amount / totalBudget) * 100).toFixed(1)
+          : '0.0',
+    })
+  );
+
+  return {
+    totalSpent: spent,
+    budgetUsagePercent,
+    categoryBreakdown,
+    userBreakdown,
+  };
+}, [items, totalBudget]);
+
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
-      <CustomHeader title="Budget Title" />
+      <CustomHeader title="Budget Visuals" />
       <View style={styles.pageContainer}>
-        
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          {totalBudget !== null && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={styles.sectionTitle}>💰 Budget Summary</Text>
+              <Text style={styles.entry}>
+                Total Budget: ${totalBudget.toFixed(2)}
+              </Text>
+              <Text style={styles.entry}>
+                Spent: ${totalSpent.toFixed(2)} ({budgetUsagePercent}% used)
+              </Text>
+              <Text style={styles.entry}>
+                Remaining: ${(totalBudget - totalSpent).toFixed(2)}
+              </Text>
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>📊 Category Breakdown</Text>
+          {categoryBreakdown.map(({ categoryId, amount, percentOfBudget }) => {
+            const name = categoryNameMap[parseInt(categoryId)] || 'Unknown';
+            return (
+              <Text key={categoryId} style={styles.entry}>
+                {name}: ${amount.toFixed(2)} ({percentOfBudget}% of budget)
+              </Text>
+            );
+          })}
+
+          <Text style={[styles.sectionTitle, { marginTop: 20 }]}>👥 User Spending</Text>
+          {userBreakdown.map(({ username, amount, percentOfBudget }) => (
+            <Text key={username} style={styles.entry}>
+              {username}: ${amount.toFixed(2)} ({percentOfBudget}% of budget)
+            </Text>
+          ))}
+        </ScrollView>
+
         {/* Floating Action Button */}
         <TouchableOpacity
           style={styles.fab}
@@ -352,5 +476,17 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+  },
+  //These are just filler copilot displays, need fix
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  entry: {
+    fontSize: 15,
+    color: '#ccc',
+    marginBottom: 6,
   },
 });

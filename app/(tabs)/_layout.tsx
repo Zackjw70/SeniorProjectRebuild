@@ -60,7 +60,7 @@ function TabLayoutContent() {
             }}
           />
           <Tabs.Screen
-            name="stats"
+            name="visuals"
             options={{
               title: 'Insights',
               tabBarIcon: ({ color, size }) => (
@@ -69,7 +69,7 @@ function TabLayoutContent() {
             }}
           />
           <Tabs.Screen
-            name="visuals"
+            name="stats"
             options={{
               title: 'Transactions',
               tabBarIcon: ({ color, size }) => (
