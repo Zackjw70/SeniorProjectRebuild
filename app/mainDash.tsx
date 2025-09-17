@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, Alert, ScrollView, Button,
-  Keyboard
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -40,7 +42,6 @@ export default function MainDash() {
 
       console.log('Logged in as:', user.email);
 
-      // Fetch budgets owned by the user
       const { data: profile } = await supabase
         .from('usertable')
         .select('userid')
@@ -80,7 +81,6 @@ export default function MainDash() {
         .flatMap(entry => entry.budgetoverview)
         .filter((b): b is Budget => b !== null && b.budgetId !== undefined);
 
-      // If joinedBudgetId is set, fetch and append it
       if (typeof joinedBudgetId === 'number' && joinedBudgetId > 0) {
         const { data: joinedBudget } = await supabase
           .from('budgetoverview')
@@ -151,63 +151,70 @@ export default function MainDash() {
 
 
   const handleCreateBudget = async () => {
-    if (!budgetName.trim() || !budgetTotal.trim()) {
-      Alert.alert('Missing Info', 'Please enter a name and total.');
-      return;
-    }
+  if (!budgetName.trim() || !budgetTotal.trim()) {
+    Alert.alert('Missing Info', 'Please enter a name and total.');
+    return;
+  }
 
-    const roomcode = generateRoomCode();
+  const roomcode = generateRoomCode();
 
-    const { data: profile } = await supabase
-      .from('usertable')
-      .select('userid')
-      .eq('email', user?.email?.trim().toLowerCase())
-      .maybeSingle();
+  const { data: profile } = await supabase
+    .from('usertable')
+    .select('userid')
+    .eq('email', user?.email?.trim().toLowerCase())
+    .maybeSingle();
 
-    if (!profile?.userid) {
-      Alert.alert('Error', 'User profile not found.');
-      return;
-    }
+  if (!profile?.userid) {
+    Alert.alert('Error', 'User profile not found.');
+    return;
+  }
 
-    const { error: insertError, data: insertedBudget } = await supabase
-      .from('budgetoverview')
-      .insert([
-        {
-          name: budgetName.trim(),
-          startDate: startDate || new Date().toISOString(),
-          endDate: endDate || null,
-          ownerId: profile.userid,
-          roomcode,
-        },
-      ])
-      .select()
-      .single();
+  const parsedTotal = parseFloat(budgetTotal);
+  if (isNaN(parsedTotal)) {
+    Alert.alert('Error', 'Total must be a valid number.');
+    return;
+  }
 
-    if (insertError || !insertedBudget?.budgetId) {
-      console.error('Insert failed:', insertError);
-      Alert.alert('Error', 'Could not create budget.');
-      return;
-    }
+  const { error: insertError, data: insertedBudget } = await supabase
+    .from('budgetoverview')
+    .insert([
+      {
+        name: budgetName.trim(),
+        startDate: startDate || new Date().toISOString(),
+        endDate: endDate || null,
+        ownerId: profile.userid,
+        roomcode,
+        totalbudget: parsedTotal, 
+      },
+    ])
+    .select()
+    .single();
 
-    
-    const { error: connectionError } = await supabase
-      .from('userconnection')
-      .insert([{ userId: profile.userid, budgetId: insertedBudget.budgetId }]);
+  if (insertError || !insertedBudget?.budgetId) {
+    console.error('Insert failed:', insertError);
+    Alert.alert('Error', 'Could not create budget.');
+    return;
+  }
 
-    if (connectionError) {
-      console.error('Connection failed:', connectionError);
-      Alert.alert('Error', 'Could not link user to budget.');
-      return;
-    }
+  const { error: connectionError } = await supabase
+    .from('userconnection')
+    .insert([{ userId: profile.userid, budgetId: insertedBudget.budgetId }]);
 
-    Alert.alert('Budget Created', `Room Code: ${roomcode}`);
-    fetchBudgets();
-    setModalVisible(false);
-    setBudgetName('');
-    setBudgetTotal('');
-    setStartDate('');
-    setEndDate('');
-  };
+  if (connectionError) {
+    console.error('Connection failed:', connectionError);
+    Alert.alert('Error', 'Could not link user to budget.');
+    return;
+  }
+
+  Alert.alert('Budget Created', `Room Code: ${roomcode}`);
+  fetchBudgets();
+  setModalVisible(false);
+  setBudgetName('');
+  setBudgetTotal('');
+  setStartDate('');
+  setEndDate('');
+};
+
 
 
   const handleJoinBudget = async () => {
@@ -268,7 +275,7 @@ export default function MainDash() {
 
   return (
     <View style={styles.container}>
-      <CustomHeader title="App Title" showBackButton={false} />
+      <CustomHeader title="Budget Buddy" showBackButton={false} />
 
       <Text style={styles.sectionTitle}>Dashboard</Text>
       <TouchableOpacity style={styles.createButton} onPress={() => setModalVisible(true)}>
@@ -288,7 +295,6 @@ export default function MainDash() {
               style={styles.budgetItem}
               onPress={() => handleBudgetPress(budget)}
             >
-              <Ionicons name="add" size={18} color="white" style={{ marginRight: 8 }} />
               <Text style={styles.budgetItemText}>{budget.name}</Text>
             </TouchableOpacity>
           ))
@@ -297,75 +303,90 @@ export default function MainDash() {
 
 
       <Modal animationType="slide" transparent visible={modalVisible}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.title}>New Budget</Text>
+  <View style={styles.modalOverlay}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, width: '100%' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.modalContent}>
+          <Text style={styles.title}>New Budget</Text>
 
-            <View style={styles.formSection}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                style={styles.input}
-                value={budgetName}
-                onChangeText={setBudgetName}
-                placeholder="Untitled Budget"
-                placeholderTextColor="#999"
-              />
+          <View style={styles.formSection}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={budgetName}
+              onChangeText={setBudgetName}
+              placeholder="Untitled Budget"
+              placeholderTextColor="#999"
+            />
 
-              
-              <Text style={styles.label}>Total</Text>
-              <TextInput
-                style={styles.input}
-                value={budgetTotal}
-                onChangeText={setBudgetTotal}
-                placeholder="$0.00"
-                placeholderTextColor="#999"
-                keyboardType="numeric"
-                blurOnSubmit={true}
-                returnKeyType="done"
-                onSubmitEditing={Keyboard.dismiss}
-              />
+            <Text style={styles.label}>Total</Text>
+            <TextInput
+              style={styles.input}
+              value={budgetTotal}
+              onChangeText={setBudgetTotal}
+              placeholder="$0.00"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+            />
 
-              <Text style={styles.label}>Start Date</Text>
-              <DateTimePicker value={date} mode="date" display="default" onChange={onChangeStartDate} />
+            <Text style={styles.label}>Start Date</Text>
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display="default"
+              onChange={onChangeStartDate}
+            />
 
-              <Text style={styles.label}>End Date</Text>
-              <DateTimePicker
-                value={endDateObj}
-                mode="date"
-                display="default"
-                onChange={onChangeEndDate}
-              />
+            <Text style={styles.label}>End Date</Text>
+            <DateTimePicker
+              value={endDateObj}
+              mode="date"
+              display="default"
+              onChange={onChangeEndDate}
+            />
 
-              <TouchableOpacity style={styles.button} onPress={handleCreateBudget}>
-                <Text style={styles.buttonText}>Create Budget</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.separatorContainer}>
-              <View style={styles.separator} />
-              <Text style={styles.orText}>Or Join With A Code</Text>
-              <View style={styles.separator} />
-            </View>
-
-            <View style={styles.formSection}>
-              <Text style={styles.label}>Join Code:</Text>
-              <TextInput
-                style={styles.input}
-                value={joinCode}
-                onChangeText={setJoinCode}
-                placeholder="Enter Code"
-                placeholderTextColor="#999"
-              />
-
-              <TouchableOpacity style={styles.button} onPress={handleJoinBudget}>
-                <Text style={styles.buttonText}>Join Budget</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Button title="Close" onPress={() => setModalVisible(false)} />
+            <TouchableOpacity style={styles.button} onPress={handleCreateBudget}>
+              <Text style={styles.buttonText}>Create Budget</Text>
+            </TouchableOpacity>
           </View>
+
+          <View style={styles.separatorContainer}>
+            <View style={styles.separator} />
+            <Text style={styles.orText}>Or Join With A Code</Text>
+            <View style={styles.separator} />
+          </View>
+
+          <View style={styles.formSection}>
+            <Text style={styles.label}>Join Code:</Text>
+            <TextInput
+              style={styles.input}
+              value={joinCode}
+              onChangeText={setJoinCode}
+              placeholder="Enter Code"
+              placeholderTextColor="#999"
+            />
+
+            <TouchableOpacity style={styles.button} onPress={handleJoinBudget}>
+              <Text style={styles.buttonText}>Join Budget</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Button title="Close" onPress={() => setModalVisible(false)} />
         </View>
-      </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </View>
+</Modal>
+
     </View>
   );
 }
@@ -416,12 +437,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
-    width: '90%',
-    backgroundColor: '#002933',
-    padding: 20,
-    borderRadius: 10,
-  },
+modalContent: {
+  width: '90%',           
+  alignSelf: 'center',
+  backgroundColor: '#002933',
+  padding: 20,
+  borderRadius: 10,
+},
+
   title: {
     fontSize: 22,
     color: 'white',

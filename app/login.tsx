@@ -96,7 +96,7 @@ const { height, width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#002b36', // dark teal background
+    backgroundColor: '#002b36', 
   },
   container: {
     flex: 1,
@@ -143,7 +143,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     color: '#ff3b80',
     fontSize: 14,
-    textDecorationLine: 'underline',
   },
   errorText: {
     color: 'red',
