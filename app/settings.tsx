@@ -2,18 +2,19 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import CustomHeader from '@/components/Header';
+import { useAuth } from '@/context/authcontext';
 
 export default function Settings() {
   const router = useRouter();
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    // TODO: clear auth/session here if needed
-    router.replace('/login');
+  const handleLogout = async () => {
+    await signOut();   // clears AsyncStorage + context
+    router.replace('/login'); // then send back to login
   };
 
   return (
     <View style={styles.container}>
-
       <CustomHeader title="Settings" showSettingsButton={false} />
 
       <View style={styles.content}>

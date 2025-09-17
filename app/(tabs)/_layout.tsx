@@ -20,7 +20,7 @@ function TabLayoutContent() {
   console.log('Roomcode from context:', roomcode);
 
   return (
-    <View style={{ flex: 1, paddingTop: 30 }}>
+    <View style={{ flex: 1, backgroundColor: colorScheme === 'dark' ? '#001E26' : '#fff' }}>
       {roomcode ? (
         <View style={styles.roomcodeContainer}>
           <TouchableOpacity onPress={() => {Clipboard.setStringAsync(roomcode);
@@ -60,7 +60,7 @@ function TabLayoutContent() {
             }}
           />
           <Tabs.Screen
-            name="stats"
+            name="visuals"
             options={{
               title: 'Transactions',
               tabBarIcon: ({ color, size }) => (
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     top: 50,
     width: '100%',
     paddingVertical: 6,
-    backgroundColor: '#003847',
+    backgroundColor: '#002b36',
     alignItems: 'center',
     zIndex: 10,
   },

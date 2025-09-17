@@ -202,19 +202,19 @@ export default function DashScreen() {
 
   // 🔹 Simple color palette for categories
 const categoryColorMap: { [key: number]: string } = {
-  2: '#4A90E2', // strong blue
-  3: '#50E3C2', // teal
-  4: '#F5A623', // orange
-  5: '#F8E71C', // yellow (slightly darker for contrast)
-  6: '#9013FE', // purple
-  7: '#D0021B', // red
-  8: '#7ED321', // green
-  9: '#417505', // darker green
-  10: '#B8E986', // lime
-  11: '#8B572A', // brown
-  12: '#BD10E0', // pink/purple
-  13: '#F62E76', // hot pink
-  14: '#FF6F61', // coral
+  2: '#1E88E5', // strong blue
+  3: '#00ACC1', // teal
+  4: '#FB8C00', // orange
+  5: '#FDD835', // golden yellow (darker, more contrast)
+  6: '#8E24AA', // purple
+  7: '#E53935', // red
+  8: '#43A047', // green
+  9: '#2E7D32', // dark green
+  10: '#7CB342', // lime/olive (darker so it shows well on white)
+  11: '#6D4C41', // brown
+  12: '#AB47BC', // magenta
+  13: '#D81B60', // hot pink
+  14: '#FF7043', // coral
 };
 
   return (

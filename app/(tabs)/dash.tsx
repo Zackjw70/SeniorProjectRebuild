@@ -11,15 +11,17 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Image,
+  Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '@/components/BudgetHeader';
 import { supabase } from '@/database/lib/supabase';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useBudget } from '@/context/budgetcontext';
 import { Picker } from '@react-native-picker/picker';
 import { iconMap } from '@/src/utils/iconMap';
+import { useAuth } from '@/context/authcontext';
 
 type Category = {
   categoryId: number;
@@ -94,11 +96,13 @@ const BudgetBar = ({
 };
 
 export default function DashScreen() {
+  const { user } = useAuth();
+
   const [modalVisible, setModalVisible] = useState(false);
   const [itemName, setItemName] = useState('');
   const [value, setValue] = useState('');
   const [category, setCategory] = useState<number | null>(null);
-  const [user, setUser] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -108,11 +112,13 @@ export default function DashScreen() {
   const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
   const [totalBudget, setTotalBudget] = useState<number>(0);
   const [budgetName, setBudgetName] = useState<string>('');
+  const [ownerId, setOwnerId] = useState<number | null>(null);
 
   const { budgetId: rawBudgetId } = useLocalSearchParams();
   const parsedBudgetId = parseInt(rawBudgetId as string, 10);
 
   const { budgetId, setBudgetId, toggleRefresh, refreshFlag } = useBudget();
+  const router = useRouter();
 
   useEffect(() => {
     if (!Number.isNaN(parsedBudgetId)) {
@@ -125,6 +131,7 @@ export default function DashScreen() {
     if (selectedDate) setDate(selectedDate);
   };
 
+  // 🔹 Fetch items
   const fetchItems = async () => {
     const { data, error } = await supabase
       .from('itemlog')
@@ -135,6 +142,7 @@ export default function DashScreen() {
     if (!error && data) setItems(data);
   };
 
+  // 🔹 Fetch categories
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categorytable')
@@ -148,11 +156,10 @@ export default function DashScreen() {
 
     if (!error && data) {
       setCategories(data);
-    } else {
-      console.error('Error fetching categories:', error);
     }
   };
 
+  // 🔹 Fetch users
   const fetchUsers = async () => {
     const { data, error } = await supabase
       .from('userconnection')
@@ -164,27 +171,23 @@ export default function DashScreen() {
       `)
       .eq('budgetId', budgetId);
 
-    if (error) {
-      console.error('Error fetching users:', error);
-      setUsersWithAccess([]);
-      return;
+    if (!error && data) {
+      setUsersWithAccess(data);
     }
-
-    setUsersWithAccess(data || []);
   };
 
+  // 🔹 Fetch budget
   const fetchBudget = async () => {
     const { data, error } = await supabase
       .from('budgetoverview')
-      .select('totalbudget, name')
+      .select('totalbudget, name, ownerId')
       .eq('budgetId', budgetId)
       .single();
 
     if (!error && data) {
       setTotalBudget(data.totalbudget);
       setBudgetName(data.name || '');
-    } else {
-      console.error('Error fetching budget:', error);
+      setOwnerId(data.ownerId);
     }
   };
 
@@ -197,17 +200,18 @@ export default function DashScreen() {
     }
   }, [budgetId, refreshFlag]);
 
+  // 🔹 Save expense
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
-      alert('Please enter a valid amount.');
+      Alert.alert('Error', 'Please enter a valid amount.');
       return;
     }
     if (!category) {
-      alert('Please select a category.');
+      Alert.alert('Error', 'Please select a category.');
       return;
     }
-    if (!user) {
-      alert('Please choose a user.');
+    if (!selectedUserId) {
+      Alert.alert('Error', 'Please choose a user.');
       return;
     }
 
@@ -216,7 +220,7 @@ export default function DashScreen() {
         itemName: itemName.trim() || 'Unnamed Item',
         value: parseFloat(value),
         categoryId: category,
-        userId: user,
+        userId: selectedUserId,
         notes,
         created_at: date.toISOString(),
         budgetId,
@@ -224,10 +228,9 @@ export default function DashScreen() {
     ]);
 
     if (error) {
-      console.error('Error saving expense:', error);
-      alert('Failed to save expense.');
+      Alert.alert('Error', 'Failed to save expense.');
     } else {
-      alert('Expense saved!');
+      Alert.alert('Success', 'Expense saved!');
       toggleRefresh();
       fetchItems();
       setModalVisible(false);
@@ -235,12 +238,13 @@ export default function DashScreen() {
       setItemName('');
       setValue('');
       setCategory(null);
-      setUser(null);
+      setSelectedUserId(null);
       setNotes('');
       setDate(new Date());
     }
   };
 
+  // 🔹 Totals
   const { totalSpent, categoryBreakdown } = useMemo(() => {
     const breakdown: { [key: string]: number } = {};
     let spent = 0;
@@ -256,21 +260,21 @@ export default function DashScreen() {
 
   const remaining = totalBudget - totalSpent;
 
-const categoryColorMap: { [key: number]: string } = {
-  2: '#4A90E2', // strong blue
-  3: '#50E3C2', // teal
-  4: '#F5A623', // orange
-  5: '#F8E71C', // yellow (slightly darker for contrast)
-  6: '#9013FE', // purple
-  7: '#D0021B', // red
-  8: '#7ED321', // green
-  9: '#417505', // darker green
-  10: '#B8E986', // lime
-  11: '#8B572A', // brown
-  12: '#BD10E0', // pink/purple
-  13: '#F62E76', // hot pink
-  14: '#FF6F61', // coral
-};
+  const categoryColorMap: { [key: number]: string } = {
+    2: '#1E88E5',
+    3: '#00ACC1',
+    4: '#FB8C00',
+    5: '#FDD835',
+    6: '#8E24AA',
+    7: '#E53935',
+    8: '#43A047',
+    9: '#2E7D32',
+    10: '#7CB342',
+    11: '#6D4C41',
+    12: '#AB47BC',
+    13: '#D81B60',
+    14: '#FF7043',
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
@@ -285,7 +289,9 @@ const categoryColorMap: { [key: number]: string } = {
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Spent</Text>
-          <Text style={[styles.summaryValue, { color: "#ff4d4d" }]}>${totalSpent.toFixed(2)}</Text>
+          <Text style={[styles.summaryValue, { color: '#ff4d4d' }]}>
+            ${totalSpent.toFixed(2)}
+          </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Remaining</Text>
@@ -299,7 +305,6 @@ const categoryColorMap: { [key: number]: string } = {
           </Text>
         </View>
 
-        {/* 🔹 Budget Bar */}
         <BudgetBar
           categoryBreakdown={categoryBreakdown}
           totalBudget={totalBudget}
@@ -309,64 +314,62 @@ const categoryColorMap: { [key: number]: string } = {
 
         <Text style={styles.sectionTitle}>Breakdown by Category</Text>
         {Object.entries(categoryBreakdown).map(([categoryId, amount]) => {
-  const category = categories.find((c) => c.categoryId == Number(categoryId));
-  const percent = totalBudget
-    ? ((amount / totalBudget) * 100).toFixed(0)
-    : '0';
-  const color = categoryColorMap[Number(categoryId)] || '#ddd';
+          const category = categories.find(
+            (c) => c.categoryId == Number(categoryId)
+          );
+          const percent = totalBudget
+            ? ((amount / totalBudget) * 100).toFixed(0)
+            : '0';
+          const color = categoryColorMap[Number(categoryId)] || '#ddd';
 
-  return (
-    <View
-      key={categoryId}
-      style={[styles.categoryRow, { backgroundColor: color }]} // 🔹 back to old style
-    >
-      <View style={styles.categoryLeft}>
-        {category?.iconId?.Iconurl ? (
-          <Image
-            source={
-              iconMap[category?.iconId?.Iconurl] ||
-              require('@/assets/icons/Question.png')
-            }
-            style={styles.categoryIcon}
-          />
-        ) : (
-          <Ionicons
-            name="folder-outline"
-            size={20}
-            color="#2a2a7f"
-            style={{ marginRight: 8 }}
-          />
-        )}
-        <Text style={styles.categoryName}>
-          {category ? category.categoryName : 'Unknown'}
-        </Text>
-      </View>
+          return (
+            <View
+              key={categoryId}
+              style={[styles.categoryRow, { backgroundColor: color }]}
+            >
+              <View style={styles.categoryLeft}>
+                {category?.iconId?.Iconurl ? (
+                  <Image
+                    source={
+                      iconMap[category?.iconId?.Iconurl] ||
+                      require('@/assets/icons/Question.png')
+                    }
+                    style={styles.categoryIcon}
+                  />
+                ) : (
+                  <Ionicons
+                    name="folder-outline"
+                    size={20}
+                    color="#2a2a7f"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <Text style={styles.categoryName}>
+                  {category ? category.categoryName : 'Unknown'}
+                </Text>
+              </View>
 
-      <View style={styles.categoryRight}>
-        <Text style={styles.categoryAmount}>${amount.toFixed(2)}</Text>
-        <Text style={styles.categoryPercent}>{percent}%</Text>
-      </View>
-    </View>
-  );
-})}
-
+              <View style={styles.categoryRight}>
+                <Text style={styles.categoryAmount}>${amount.toFixed(2)}</Text>
+                <Text style={styles.categoryPercent}>{percent}%</Text>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
 
-      {/* Floating Add Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      {/* Expense Modal */}
+      {/* 🔹 Expense Modal */}
       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
             <View style={styles.expenseModal}>
               <Text style={styles.modalTitle}>Add Expense</Text>
 
+              {/* Amount */}
               <TextInput
                 placeholder="Enter Amount"
                 value={value}
@@ -376,6 +379,7 @@ const categoryColorMap: { [key: number]: string } = {
                 style={styles.amountInput}
               />
 
+              {/* Item Name */}
               <TextInput
                 placeholder="Item Name"
                 value={itemName}
@@ -384,22 +388,24 @@ const categoryColorMap: { [key: number]: string } = {
                 style={styles.textInput}
               />
 
+              {/* Category Picker */}
               <Text style={styles.label}>Category</Text>
               <Picker
                 selectedValue={category}
-                onValueChange={(itemValue) => setCategory(itemValue)}
+                onValueChange={(val) => setCategory(val)}
                 style={styles.picker}
               >
                 <Picker.Item label="Select category..." value="" />
-                {categories.map((choice) => (
+                {categories.map((c) => (
                   <Picker.Item
-                    key={choice.categoryId}
-                    label={choice.categoryName}
-                    value={choice.categoryId}
+                    key={c.categoryId}
+                    label={c.categoryName}
+                    value={c.categoryId}
                   />
                 ))}
               </Picker>
 
+              {/* Date Picker */}
               <Text style={styles.label}>Date</Text>
               <TouchableOpacity
                 style={styles.dateBox}
@@ -416,22 +422,24 @@ const categoryColorMap: { [key: number]: string } = {
                 />
               )}
 
+              {/* User Picker */}
               <Text style={styles.label}>User</Text>
               <Picker
-                selectedValue={user}
-                onValueChange={(itemValue) => setUser(itemValue)}
+                selectedValue={selectedUserId}
+                onValueChange={(val) => setSelectedUserId(val)}
                 style={styles.picker}
               >
                 <Picker.Item label="Select user..." value="" />
-                {usersWithAccess.map((entry) => (
+                {usersWithAccess.map((u) => (
                   <Picker.Item
-                    key={entry.userId}
-                    label={entry.usertable?.username || 'Unnamed'}
-                    value={entry.userId}
+                    key={u.userId}
+                    label={u.usertable?.username || 'Unnamed'}
+                    value={u.userId}
                   />
                 ))}
               </Picker>
 
+              {/* Notes */}
               <TextInput
                 placeholder="Notes"
                 placeholderTextColor="#888"
@@ -441,6 +449,7 @@ const categoryColorMap: { [key: number]: string } = {
                 multiline
               />
 
+              {/* Buttons */}
               <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
                 <Text style={styles.buttonText}>Add Expense</Text>
               </TouchableOpacity>
@@ -460,9 +469,7 @@ const categoryColorMap: { [key: number]: string } = {
 }
 
 const styles = StyleSheet.create({
-  pageContainer: {
-    padding: 16,
-  },
+  pageContainer: { padding: 16 },
   sectionTitle: {
     fontSize: 18,
     color: '#ff4081',
@@ -476,17 +483,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  summaryLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  // 🔹 Budget bar styles
+  summaryLabel: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  summaryValue: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   barContainer: {
     flexDirection: 'row',
     height: 60,
@@ -494,54 +492,34 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginVertical: 12,
   },
-  segment: {
-    height: '100%',
-  },
-  colorBox: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
-    marginRight: 10,
-  },
+  segment: { height: '100%' },
   categoryRow: {
-  borderRadius: 10,
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  paddingVertical: 12,
-  paddingHorizontal: 16,
-  marginBottom: 10,
-},
-categoryLeft: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-categoryName: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#fff',
-},
-categoryIcon: {
-  width: 22,
-  height: 22,
-  marginRight: 8,
-  resizeMode: 'contain',
-},
-categoryRight: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-categoryAmount: {
-  fontSize: 15,
-  fontWeight: '600',
-  color: '#fff',
-  marginRight: 12,
-},
-categoryPercent: {
-  fontSize: 15,
-  fontWeight: '600',
-  color: '#fff',
-},
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center' },
+  categoryName: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
+  categoryIcon: {
+    width: 22,
+    height: 22,
+    marginRight: 8,
+    resizeMode: 'contain',
+  },
+  categoryRight: { flexDirection: 'row', alignItems: 'center' },
+  categoryAmount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    marginRight: 12,
+  },
+  categoryPercent: { fontSize: 15, fontWeight: '600', color: '#fff' },
+
+  // 🔹 Modal styles
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -553,11 +531,6 @@ categoryPercent: {
     backgroundColor: '#003847',
     borderRadius: 18,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 8,
   },
   modalTitle: {
     fontSize: 20,
@@ -592,16 +565,8 @@ categoryPercent: {
     color: '#fff',
     marginBottom: 16,
   },
-  label: {
-    fontSize: 13,
-    color: '#ccc',
-    marginBottom: 4,
-    marginTop: 8,
-  },
-  valueText: {
-    fontSize: 15,
-    color: '#fff',
-  },
+  label: { fontSize: 13, color: '#ccc', marginBottom: 4, marginTop: 8 },
+  valueText: { fontSize: 15, color: '#fff' },
   dateBox: {
     backgroundColor: '#004d5c',
     borderRadius: 10,
@@ -610,7 +575,7 @@ categoryPercent: {
   },
   picker: {
     backgroundColor: '#004d5c',
-    borderRadius:10,
+    borderRadius: 10,
     color: '#fff',
     marginBottom: 12,
   },
@@ -621,19 +586,10 @@ categoryPercent: {
     alignItems: 'center',
     marginBottom: 8,
   },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  cancelText: {
-    color: '#aaa',
-    fontSize: 14,
-  },
+  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
+  cancelButton: { alignItems: 'center', paddingVertical: 8 },
+  cancelText: { color: '#aaa', fontSize: 14 },
+
   fab: {
     position: 'absolute',
     bottom: 30,
@@ -645,9 +601,5 @@ categoryPercent: {
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
 });

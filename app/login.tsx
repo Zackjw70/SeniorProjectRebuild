@@ -143,7 +143,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     color: '#ff3b80',
     fontSize: 14,
-    textDecorationLine: 'underline',
   },
   errorText: {
     color: 'red',

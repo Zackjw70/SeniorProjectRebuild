@@ -8,6 +8,7 @@ import React from 'react';
 import { AuthProvider } from '@/context/authcontext';
 import { BudgetProvider } from '@/context/budgetcontext';
 
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   

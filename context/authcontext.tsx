@@ -1,29 +1,54 @@
-import React, { createContext, useContext, useState } from 'react';
-import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/database/lib/supabase';
 
-type CustomUser = {
-  userid: number;
-  email: string;
-  username: string;
-};
-
 type AuthContextType = {
-  user: CustomUser | null;
-  setUser: (user: CustomUser | null) => void;
+  user: any;
+  setUser: (user: any) => void;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   setUser: () => {},
+  signOut: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<CustomUser | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Load stored session on app start
+    const loadUser = async () => {
+      const sessionString = await AsyncStorage.getItem('user');
+      if (sessionString) {
+        setUser(JSON.parse(sessionString));
+      }
+      setLoading(false);
+    };
+
+    loadUser();
+  }, []);
+
+  const updateUser = async (newUser: any) => {
+    setUser(newUser);
+    if (newUser) {
+      await AsyncStorage.setItem('user', JSON.stringify(newUser));
+    } else {
+      await AsyncStorage.removeItem('user');
+    }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut(); // optional if you later use Supabase Auth
+    await AsyncStorage.removeItem('user');
+    setUser(null);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
-      {children}
+    <AuthContext.Provider value={{ user, setUser: updateUser, signOut }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
