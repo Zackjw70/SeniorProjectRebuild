@@ -12,6 +12,7 @@ import {
   ScrollView,
   Image,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,9 +20,9 @@ import CustomHeader from '@/components/BudgetHeader';
 import { supabase } from '@/database/lib/supabase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useBudget } from '@/context/budgetcontext';
-import { Picker } from '@react-native-picker/picker';
 import { iconMap } from '@/src/utils/iconMap';
 import { useAuth } from '@/context/authcontext';
+import DropDownPicker from 'react-native-dropdown-picker';
 
 type Category = {
   categoryId: number;
@@ -113,6 +114,12 @@ export default function DashScreen() {
   const [budgetName, setBudgetName] = useState<string>('');
   const [ownerId, setOwnerId] = useState<number | null>(null);
 
+  // dropdown state
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const [categoryItems, setCategoryItems] = useState<{ label: string; value: number }[]>([]);
+  const [userItems, setUserItems] = useState<{ label: string; value: number }[]>([]);
+
   const { budgetId: rawBudgetId } = useLocalSearchParams();
   const parsedBudgetId = parseInt(rawBudgetId as string, 10);
 
@@ -153,6 +160,7 @@ export default function DashScreen() {
 
     if (!error && data) {
       setCategories(data);
+      setCategoryItems(data.map((c) => ({ label: c.categoryName, value: c.categoryId })));
     }
   };
 
@@ -169,6 +177,7 @@ export default function DashScreen() {
 
     if (!error && data) {
       setUsersWithAccess(data);
+      setUserItems(data.map((u) => ({ label: u.usertable?.username || 'Unnamed', value: u.userId })));
     }
   };
 
@@ -269,6 +278,7 @@ export default function DashScreen() {
     14: '#FF7043',
   };
 
+
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
       <CustomHeader title={budgetName ? budgetName : `Budget #${budgetId}`} />
@@ -355,97 +365,106 @@ export default function DashScreen() {
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-      <Modal animationType="slide" transparent={true} visible={modalVisible}>
+       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
-            <View style={styles.expenseModal}>
-              <Text style={styles.modalTitle}>Add Expense</Text>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ width: '100%', alignItems: 'center' }}
+            >
+              <View style={styles.expenseModal}>
+                <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                  <Text style={styles.modalTitle}>Add Expense</Text>
 
-              <TextInput
-                placeholder="Enter Amount"
-                value={value}
-                onChangeText={setValue}
-                keyboardType="numeric"
-                placeholderTextColor="#888"
-                style={styles.amountInput}
-              />
-
-              <TextInput
-                placeholder="Item Name"
-                value={itemName}
-                onChangeText={setItemName}
-                placeholderTextColor="#888"
-                style={styles.textInput}
-              />
-
-              <Text style={styles.label}>Category</Text>
-              <Picker
-                selectedValue={category}
-                onValueChange={(val) => setCategory(val)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select category..." value="" />
-                {categories.map((c) => (
-                  <Picker.Item
-                    key={c.categoryId}
-                    label={c.categoryName}
-                    value={c.categoryId}
+                  <TextInput
+                    placeholder="Enter Amount"
+                    value={value}
+                    onChangeText={setValue}
+                    keyboardType="numeric"
+                    placeholderTextColor="#888"
+                    style={styles.amountInput}
                   />
-                ))}
-              </Picker>
 
-              <Text style={styles.label}>Date</Text>
-              <TouchableOpacity
-                style={styles.dateBox}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.valueText}>{date.toDateString()}</Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  onChange={onChangeDate}
-                />
-              )}
-
-              <Text style={styles.label}>User</Text>
-              <Picker
-                selectedValue={selectedUserId}
-                onValueChange={(val) => setSelectedUserId(val)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select user..." value="" />
-                {usersWithAccess.map((u) => (
-                  <Picker.Item
-                    key={u.userId}
-                    label={u.usertable?.username || 'Unnamed'}
-                    value={u.userId}
+                  <TextInput
+                    placeholder="Item Name"
+                    value={itemName}
+                    onChangeText={setItemName}
+                    placeholderTextColor="#888"
+                    style={styles.textInput}
                   />
-                ))}
-              </Picker>
 
-              <TextInput
-                placeholder="Notes"
-                placeholderTextColor="#888"
-                value={notes}
-                onChangeText={setNotes}
-                style={styles.textArea}
-                multiline
-              />
+                  <Text style={styles.label}>Category</Text>
+                  <DropDownPicker
+                    open={categoryOpen}
+                    value={category}
+                    items={categoryItems}
+                    setOpen={setCategoryOpen}
+                    setValue={setCategory}
+                    setItems={setCategoryItems}
+                    placeholder="Select category..."
+                    style={styles.dropdown}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    textStyle={{ color: '#fff' }}   
+                    placeholderStyle={{ color: '#ccc' }} 
+                    zIndex={3000}
+                    zIndexInverse={1000}
+                  />
 
-              <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
-                <Text style={styles.buttonText}>Add Expense</Text>
-              </TouchableOpacity>
+                  <Text style={styles.label}>Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateBox}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={styles.valueText}>{date.toDateString()}</Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                      onChange={onChangeDate}
+                    />
+                  )}
 
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={styles.label}>User</Text>
+                  <DropDownPicker
+                    open={userOpen}
+                    value={selectedUserId}
+                    items={userItems}
+                    setOpen={setUserOpen}
+                    setValue={setSelectedUserId}
+                    setItems={setUserItems}
+                    placeholder="Select user..."
+                    style={styles.dropdown}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    textStyle={{ color: '#fff' }}   
+                    placeholderStyle={{ color: '#ccc' }} 
+                    zIndex={2000}
+                    zIndexInverse={2000}
+                  />
+
+                  <TextInput
+                    placeholder="Notes"
+                    placeholderTextColor="#888"
+                    value={notes}
+                    onChangeText={setNotes}
+                    style={styles.textArea}
+                    multiline
+                  />
+
+                  <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
+                    <Text style={styles.buttonText}>Add Expense</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
@@ -585,5 +604,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
+  },
+  dropdown: {
+    backgroundColor: '#004d5c',
+    borderRadius: 8,
+    borderWidth: 0,
+    minHeight: 40,
+    marginBottom: 12,
+  },
+  dropdownContainer: {
+    backgroundColor: '#004d5c',
+    borderWidth: 0,
+    borderRadius: 8,
   },
 });

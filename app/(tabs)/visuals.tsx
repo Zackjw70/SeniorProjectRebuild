@@ -11,6 +11,8 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Image,
+  Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +20,8 @@ import CustomHeader from '@/components/BudgetHeader';
 import { supabase } from '@/database/lib/supabase';
 import { useLocalSearchParams } from 'expo-router';
 import { useBudget } from '@/context/budgetcontext';
-import { Picker } from '@react-native-picker/picker';
 import { iconMap } from '@/src/utils/iconMap';
+import DropDownPicker from 'react-native-dropdown-picker';
 
 type Category = {
   categoryId: number;
@@ -45,7 +47,7 @@ export default function DashScreen() {
   const [itemName, setItemName] = useState('');
   const [value, setValue] = useState('');
   const [category, setCategory] = useState<number | null>(null);
-  const [user, setUser] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -55,6 +57,12 @@ export default function DashScreen() {
   const [usersWithAccess, setUsersWithAccess] = useState<UserAccess[]>([]);
   const [totalBudget, setTotalBudget] = useState<number>(0);
   const [budgetName, setBudgetName] = useState<string>('');
+
+  // dropdown state
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const [categoryItems, setCategoryItems] = useState<{ label: string; value: number }[]>([]);
+  const [userItems, setUserItems] = useState<{ label: string; value: number }[]>([]);
 
   const { budgetId: rawBudgetId } = useLocalSearchParams();
   const parsedBudgetId = parseInt(rawBudgetId as string, 10);
@@ -82,7 +90,6 @@ export default function DashScreen() {
     if (!error && data) setItems(data);
   };
 
-
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('categorytable')
@@ -96,11 +103,9 @@ export default function DashScreen() {
 
     if (!error && data) {
       setCategories(data);
-    } else {
-      console.error('Error fetching categories:', error);
+      setCategoryItems(data.map((c) => ({ label: c.categoryName, value: c.categoryId })));
     }
   };
-
 
   const fetchUsers = async () => {
     const { data, error } = await supabase
@@ -113,15 +118,11 @@ export default function DashScreen() {
       `)
       .eq('budgetId', budgetId);
 
-    if (error) {
-      console.error('Error fetching users:', error);
-      setUsersWithAccess([]);
-      return;
+    if (!error && data) {
+      setUsersWithAccess(data);
+      setUserItems(data.map((u) => ({ label: u.usertable?.username || 'Unnamed', value: u.userId })));
     }
-
-    setUsersWithAccess(data || []);
   };
-
 
   const fetchBudget = async () => {
     const { data, error } = await supabase
@@ -133,8 +134,6 @@ export default function DashScreen() {
     if (!error && data) {
       setTotalBudget(data.totalbudget);
       setBudgetName(data.name || '');
-    } else {
-      console.error('Error fetching budget:', error);
     }
   };
 
@@ -147,18 +146,17 @@ export default function DashScreen() {
     }
   }, [budgetId, refreshFlag]);
 
-
   const saveExpense = async () => {
     if (!value.trim() || isNaN(parseFloat(value))) {
-      alert('Please enter a valid amount.');
+      Alert.alert('Error', 'Please enter a valid amount.');
       return;
     }
     if (!category) {
-      alert('Please select a category.');
+      Alert.alert('Error', 'Please select a category.');
       return;
     }
-    if (!user) {
-      alert('Please choose a user.');
+    if (!selectedUserId) {
+      Alert.alert('Error', 'Please choose a user.');
       return;
     }
 
@@ -167,7 +165,7 @@ export default function DashScreen() {
         itemName: itemName.trim() || 'Unnamed Item',
         value: parseFloat(value),
         categoryId: category,
-        userId: user,
+        userId: selectedUserId,
         notes,
         created_at: date.toISOString(),
         budgetId,
@@ -175,10 +173,9 @@ export default function DashScreen() {
     ]);
 
     if (error) {
-      console.error('Error saving expense:', error);
-      alert('Failed to save expense.');
+      Alert.alert('Error', 'Failed to save expense.');
     } else {
-      alert('Expense saved!');
+      Alert.alert('Success', 'Expense saved!');
       toggleRefresh();
       fetchItems();
       setModalVisible(false);
@@ -186,7 +183,7 @@ export default function DashScreen() {
       setItemName('');
       setValue('');
       setCategory(null);
-      setUser(null);
+      setSelectedUserId(null);
       setNotes('');
       setDate(new Date());
     }
@@ -198,29 +195,27 @@ export default function DashScreen() {
 
   const remaining = totalBudget - totalSpent;
 
-
-const categoryColorMap: { [key: number]: string } = {
-  2: '#1E88E5', // strong blue
-  3: '#00ACC1', // teal
-  4: '#FB8C00', // orange
-  5: '#FDD835', // golden yellow 
-  6: '#8E24AA', // purple
-  7: '#E53935', // red
-  8: '#43A047', // green
-  9: '#2E7D32', // dark green
-  10: '#7CB342', // lime
-  11: '#6D4C41', // brown
-  12: '#AB47BC', // magenta
-  13: '#D81B60', // hot pink
-  14: '#FF7043', // coral
-};
+  const categoryColorMap: { [key: number]: string } = {
+    2: '#1E88E5',
+    3: '#00ACC1',
+    4: '#FB8C00',
+    5: '#FDD835',
+    6: '#8E24AA',
+    7: '#E53935',
+    8: '#43A047',
+    9: '#2E7D32',
+    10: '#7CB342',
+    11: '#6D4C41',
+    12: '#AB47BC',
+    13: '#D81B60',
+    14: '#FF7043',
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#002B36' }}>
       <CustomHeader title={budgetName ? budgetName : `Budget #${budgetId}`} />
 
       <ScrollView contentContainerStyle={styles.pageContainer}>
-
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Total</Text>
           <Text style={styles.summaryValue}>
@@ -229,7 +224,9 @@ const categoryColorMap: { [key: number]: string } = {
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Spent</Text>
-          <Text style={[styles.summaryValue, { color: "#ff4d4d" }]}>${totalSpent.toFixed(2)}</Text>
+          <Text style={[styles.summaryValue, { color: '#ff4d4d' }]}>
+            ${totalSpent.toFixed(2)}
+          </Text>
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Remaining</Text>
@@ -243,7 +240,6 @@ const categoryColorMap: { [key: number]: string } = {
           </Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Expenses</Text>
         {Object.entries(
           items.reduce((acc, item) => {
             const dateKey = new Date(item.created_at).toDateString();
@@ -253,15 +249,11 @@ const categoryColorMap: { [key: number]: string } = {
           }, {} as { [key: string]: any[] })
         ).map(([dateKey, dayItems]) => (
           <View key={dateKey}>
-
             <Text style={styles.dateHeader}>{dateKey}</Text>
-
-
             {dayItems.map((item, index) => {
               const categoryInfo = categories.find(
                 (c) => c.categoryId === item.categoryId
               );
-
               const uniqueKey =
                 item.id ??
                 `${item.categoryId}-${item.itemName}-${item.created_at}-${index}`;
@@ -274,7 +266,6 @@ const categoryColorMap: { [key: number]: string } = {
                     { backgroundColor: categoryColorMap[item.categoryId] || '#ddd' },
                   ]}
                 >
-
                   <View style={styles.categoryLeft}>
                     {categoryInfo?.iconId?.Iconurl ? (
                       <Image
@@ -299,8 +290,6 @@ const categoryColorMap: { [key: number]: string } = {
                       </Text>
                     </View>
                   </View>
-
-
                   <View style={styles.categoryRight}>
                     <Text style={styles.categoryAmount}>
                       ${item.value.toFixed(2)}
@@ -317,99 +306,107 @@ const categoryColorMap: { [key: number]: string } = {
         <Ionicons name="add" size={30} color="white" />
       </TouchableOpacity>
 
-
+      {/* 🔥 New Modal */}
       <Modal animationType="slide" transparent={true} visible={modalVisible}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.overlay}>
-            <View style={styles.expenseModal}>
-              <Text style={styles.modalTitle}>Add Expense</Text>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ width: '100%', alignItems: 'center' }}
+            >
+              <View style={styles.expenseModal}>
+                <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+                  <Text style={styles.modalTitle}>Add Expense</Text>
 
-
-              <TextInput
-                placeholder="Enter Amount"
-                value={value}
-                onChangeText={setValue}
-                keyboardType="numeric"
-                placeholderTextColor="#888"
-                style={styles.amountInput}
-              />
-
-              <TextInput
-                placeholder="Item Name"
-                value={itemName}
-                onChangeText={setItemName}
-                placeholderTextColor="#888"
-                style={styles.textInput}
-              />
-
-              <Text style={styles.label}>Category</Text>
-              <Picker
-                selectedValue={category}
-                onValueChange={(itemValue) => setCategory(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select category..." value="" />
-                {categories.map((choice) => (
-                  <Picker.Item
-                    key={choice.categoryId}
-                    label={choice.categoryName}
-                    value={choice.categoryId}
+                  <TextInput
+                    placeholder="Enter Amount"
+                    value={value}
+                    onChangeText={setValue}
+                    keyboardType="numeric"
+                    placeholderTextColor="#888"
+                    style={styles.amountInput}
                   />
-                ))}
-              </Picker>
 
-              <Text style={styles.label}>Date</Text>
-              <TouchableOpacity
-                style={styles.dateBox}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text style={styles.valueText}>{date.toDateString()}</Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                  onChange={onChangeDate}
-                />
-              )}
-
-              <Text style={styles.label}>User</Text>
-              <Picker
-                selectedValue={user}
-                onValueChange={(itemValue) => setUser(itemValue)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select user..." value="" />
-                {usersWithAccess.map((entry) => (
-                  <Picker.Item
-                    key={entry.userId}
-                    label={entry.usertable?.username || 'Unnamed'}
-                    value={entry.userId}
+                  <TextInput
+                    placeholder="Item Name"
+                    value={itemName}
+                    onChangeText={setItemName}
+                    placeholderTextColor="#888"
+                    style={styles.textInput}
                   />
-                ))}
-              </Picker>
 
-              <TextInput
-                placeholder="Notes"
-                placeholderTextColor="#888"
-                value={notes}
-                onChangeText={setNotes}
-                style={styles.textArea}
-                multiline
-              />
+                  <Text style={styles.label}>Category</Text>
+                  <DropDownPicker
+                    open={categoryOpen}
+                    value={category}
+                    items={categoryItems}
+                    setOpen={setCategoryOpen}
+                    setValue={setCategory}
+                    setItems={setCategoryItems}
+                    placeholder="Select category..."
+                    style={styles.dropdown}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    textStyle={{ color: '#fff' }}
+                    placeholderStyle={{ color: '#ccc' }}
+                    zIndex={3000}
+                    zIndexInverse={1000}
+                  />
 
-              <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
-                <Text style={styles.buttonText}>Add Expense</Text>
-              </TouchableOpacity>
+                  <Text style={styles.label}>Date</Text>
+                  <TouchableOpacity
+                    style={styles.dateBox}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={styles.valueText}>{date.toDateString()}</Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={date}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                      onChange={onChangeDate}
+                    />
+                  )}
 
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+                  <Text style={styles.label}>User</Text>
+                  <DropDownPicker
+                    open={userOpen}
+                    value={selectedUserId}
+                    items={userItems}
+                    setOpen={setUserOpen}
+                    setValue={setSelectedUserId}
+                    setItems={setUserItems}
+                    placeholder="Select user..."
+                    style={styles.dropdown}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    textStyle={{ color: '#fff' }}
+                    placeholderStyle={{ color: '#ccc' }}
+                    zIndex={2000}
+                    zIndexInverse={2000}
+                  />
+
+                  <TextInput
+                    placeholder="Notes"
+                    placeholderTextColor="#888"
+                    value={notes}
+                    onChangeText={setNotes}
+                    style={styles.textArea}
+                    multiline
+                  />
+
+                  <TouchableOpacity style={styles.addButton} onPress={saveExpense}>
+                    <Text style={styles.buttonText}>Add Expense</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
@@ -418,9 +415,7 @@ const categoryColorMap: { [key: number]: string } = {
 }
 
 const styles = StyleSheet.create({
-  pageContainer: {
-    padding: 16,
-  },
+  pageContainer: { padding: 16 },
   sectionTitle: {
     fontSize: 18,
     color: '#ff4081',
@@ -434,16 +429,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  summaryLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  summaryLabel: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  summaryValue: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
   categoryRow: {
     borderRadius: 10,
     flexDirection: 'row',
@@ -453,25 +440,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
   },
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center' },
+  categoryName: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
   categoryIcon: {
     width: 22,
     height: 22,
     marginRight: 8,
     resizeMode: 'contain',
   },
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  categoryRight: { flexDirection: 'row', alignItems: 'center' },
   categoryAmount: {
     fontSize: 15,
     fontWeight: '600',
@@ -489,11 +466,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#003847',
     borderRadius: 18,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 8,
   },
   modalTitle: {
     fontSize: 20,
@@ -528,26 +500,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 16,
   },
-  label: {
-    fontSize: 13,
-    color: '#ccc',
-    marginBottom: 4,
-    marginTop: 8,
-  },
-  valueText: {
-    fontSize: 15,
-    color: '#fff',
-  },
+  label: { fontSize: 13, color: '#ccc', marginBottom: 4, marginTop: 8 },
+  valueText: { fontSize: 15, color: '#fff' },
   dateBox: {
     backgroundColor: '#004d5c',
     borderRadius: 10,
     padding: 10,
-    marginBottom: 12,
-  },
-  picker: {
-    backgroundColor: '#004d5c',
-    borderRadius: 10,
-    color: '#fff',
     marginBottom: 12,
   },
   addButton: {
@@ -557,19 +515,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  cancelButton: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  cancelText: {
-    color: '#aaa',
-    fontSize: 14,
-  },
+  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
+  cancelButton: { alignItems: 'center', paddingVertical: 8 },
+  cancelText: { color: '#aaa', fontSize: 14 },
   fab: {
     position: 'absolute',
     bottom: 30,
@@ -581,10 +529,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
   dateHeader: {
     fontSize: 16,
@@ -592,5 +536,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 15,
     marginBottom: 8,
+  },
+  dropdown: {
+    backgroundColor: '#004d5c',
+    borderRadius: 8,
+    borderWidth: 0,
+    minHeight: 40,
+    marginBottom: 12,
+  },
+  dropdownContainer: {
+    backgroundColor: '#004d5c',
+    borderWidth: 0,
+    borderRadius: 8,
   },
 });
