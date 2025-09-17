@@ -1,15 +1,24 @@
-import { View, Text, Button } from 'react-native';
+import { useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/authcontext';
 import React from 'react';
 
 export default function Landing() {
+  const { user } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (user) {
+      router.replace('/mainDash');
+    } else {
+      router.replace('/login');
+    }
+  }, [user]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Welcome to the App</Text>
-      <Button title="Go to Login" onPress={() => router.push('/login')} />
-      <Button title="Go to Main Dashboard" onPress={() => router.push('/mainDash')} />
+      <ActivityIndicator size="large" color="#ff3b80" />
     </View>
   );
 }

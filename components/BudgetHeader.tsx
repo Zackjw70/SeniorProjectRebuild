@@ -46,7 +46,6 @@ export default function CustomHeader({
         )}
       </View>
 
-      {/* Divider below header content */}
       <View style={styles.divider} />
     </View>
   );
@@ -57,7 +56,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#002B36',
   },
   container: {
-    height: 100,
+    height: 150,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
